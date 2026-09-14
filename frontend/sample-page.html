@@ -12,7 +12,7 @@
       color: #1f2933;
       background: #f5f7fa;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
       height: 100vh;
     }
     header {
@@ -24,79 +24,88 @@
       justify-content: space-between;
     }
     header h1 { font-size: 26px; letter-spacing: .3px; }
-    header nav span { margin-left: 26px; font-size: 15px; opacity: .85; }
     main {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 22px;
-      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 40px;
+      overflow: hidden;
     }
     .card {
       background: #fff;
       border-radius: 12px;
-      padding: 22px 26px;
+      padding: 48px 56px;
       box-shadow: 0 1px 3px rgba(16,42,67,.12);
+      width: 80%;
+      height: 80%;
       display: flex;
       flex-direction: column;
     }
-    .card h2 { font-size: 19px; margin-bottom: 12px; color: #14304a; }
-    .card p { font-size: 15px; line-height: 1.55; color: #52606d; }
-    .hero { grid-row: 1 / span 2; }
-    .hero .big-number { font-size: 64px; font-weight: 700; color: #2f6fb0; margin: 8px 0; }
-    .stat { font-size: 40px; font-weight: 700; color: #2f6fb0; }
-    .swatch {
-      margin-top: auto;
-      height: 46%;
-      border-radius: 8px;
-      background: linear-gradient(120deg, #d7e6f5, #f0d9e6);
+    .prompt-label {
+      font-size: 15px;
+      color: #2f6fb0;
+      font-weight: 600;
+      margin-bottom: 14px;
     }
-    footer {
-      background: #e4e9f0;
-      padding: 16px 40px;
-      font-size: 13px;
-      color: #52606d;
+    .twister {
+      font-size: 32px;
+      line-height: 1.5;
+      color: #14304a;
+      font-style: italic;
+      margin-bottom: 40px;
+      padding: 26px 30px;
+      background: #f0f4f9;
+      border-left: 5px solid #2f6fb0;
+      border-radius: 6px;
+    }
+    .options { display: flex; flex-direction: column; gap: 16px; }
+    .option {
       display: flex;
-      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 22px;
+      border: 1px solid #d7dee6;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color .1s, background .1s;
     }
+    .option:hover { border-color: #2f6fb0; background: #f7fafd; }
+    .option input { accent-color: #2f6fb0; width: 20px; height: 20px; }
+    .option label { font-size: 19px; cursor: pointer; flex: 1; }
+    .actions { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 24px; }
+    .btn {
+      background: #2f6fb0;
+      color: #fff;
+      border: none;
+      padding: 14px 34px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .1s;
+    }
+    .btn:hover { background: #3a80c8; }
   </style>
 </head>
 <body>
   <header>
-    <h1 id="site-title">Attention Analytics Demo</h1>
-    <nav>
-      <span id="nav-overview">Overview</span>
-      <span id="nav-reports">Reports</span>
-      <span id="nav-about">About</span>
-    </nav>
+    <h1 id="site-title">Mock Language Exam</h1>
   </header>
 
   <main>
-    <section class="card hero" id="card-hero">
-      <h2>Where are you looking?</h2>
-      <p>Read across this page naturally. Your gaze is being recorded so we can
-         build a heatmap of which regions drew the most attention.</p>
-      <div class="big-number" id="hero-number">72%</div>
-      <p>of attention typically lands in the top-left "F-pattern" zone.</p>
-      <div class="swatch" id="hero-swatch"></div>
-    </section>
-
-    <section class="card" id="card-stat-a">
-      <h2>Top-right panel</h2>
-      <div class="stat" id="stat-a">1,284</div>
-      <p>Look here for a moment, then move on.</p>
-    </section>
-
-    <section class="card" id="card-stat-b">
-      <h2>Bottom-right panel</h2>
-      <div class="stat" id="stat-b">36.5s</div>
-      <p>A secondary region to compare fixation density against the hero panel.</p>
+    <section class="card" id="page-1">
+      <div class="prompt-label">Read the tongue twister, then answer below</div>
+      <p class="twister">She sells seashells by the seashore.</p>
+      <div class="options">
+        <div class="option"><input type="radio" name="q1" id="q1-a" value="a"><label for="q1-a">A tongue twister about shells</label></div>
+        <div class="option"><input type="radio" name="q1" id="q1-b" value="b"><label for="q1-b">A tongue twister about the ocean tide</label></div>
+        <div class="option"><input type="radio" name="q1" id="q1-c" value="c"><label for="q1-c">A tongue twister about sailing ships</label></div>
+        <div class="option"><input type="radio" name="q1" id="q1-d" value="d"><label for="q1-d">A tongue twister about fishing</label></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="nextBtn">Next</button>
+      </div>
     </section>
   </main>
-
-  <footer>
-    <span id="footer-left">Eye-Tracking Analysis &mdash; standalone demo</span>
-    <span id="footer-right">WebGazer &middot; heatmap.js &middot; ST-DBSCAN</span>
-  </footer>
 </body>
 </html>
