@@ -2,7 +2,7 @@
 
 A single FastAPI service that:
   * serves the static frontend (capture + viewer pages),
-  * stores gaze sessions and raw gaze points in SQLite,
+  * stores gaze sessions and raw gaze points in PostgreSQL,
   * runs the reused ST-DBSCAN fixation pipeline on demand,
   * returns raw points and processed fixations for heatmap rendering.
 
@@ -13,6 +13,7 @@ import sys
 import shutil
 import asyncio
 import subprocess
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -36,6 +37,13 @@ from db.models import GazepointSession, GazepointData, Fixation  # noqa: E402
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
 
+# Gaze points are held here and flushed to Postgres as a single bulk insert on
+# this interval, instead of writing on every incoming /api/points request.
+POINT_FLUSH_INTERVAL_SECONDS = 5
+_point_buffer: list[dict] = []
+_buffer_lock = asyncio.Lock()
+_session_user_cache: dict[int, uuid.UUID] = {}
+
 # Folders the pipeline writes into; cleared before each processing run so only
 # the requested session is processed.
 PIPELINE_WORK_DIRS = [
@@ -57,8 +65,53 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup() -> None:
-    """Create SQLite tables if they don't exist yet."""
+    """Create Postgres tables if they don't exist yet, and start the batch flusher."""
     await init_db()
+    app.state.flush_task = asyncio.create_task(_flush_loop())
+
+
+@app.on_event("shutdown")
+async def _shutdown() -> None:
+    """Stop the flusher and persist any points still sitting in the buffer."""
+    app.state.flush_task.cancel()
+    try:
+        await app.state.flush_task
+    except asyncio.CancelledError:
+        pass
+    await _flush_buffer()
+
+
+async def _flush_loop() -> None:
+    """Wake up every POINT_FLUSH_INTERVAL_SECONDS and persist buffered points."""
+    while True:
+        await asyncio.sleep(POINT_FLUSH_INTERVAL_SECONDS)
+        await _flush_buffer()
+
+
+async def _flush_buffer() -> None:
+    """Write everything currently buffered to Postgres as one bulk insert."""
+    global _point_buffer
+    async with _buffer_lock:
+        if not _point_buffer:
+            return
+        batch, _point_buffer = _point_buffer, []
+
+    now = datetime.now(timezone.utc)
+    rows = [GazepointData(**item, created_at=now) for item in batch]
+    async with AsyncSessionLocal() as db:
+        db.add_all(rows)
+        await db.commit()
+
+
+async def _get_session_user_id(db: AsyncSession, session_id: int) -> uuid.UUID:
+    """Resolve (and cache) the per-session participant UUID for a session_id."""
+    if session_id in _session_user_cache:
+        return _session_user_cache[session_id]
+    session = await db.get(GazepointSession, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    _session_user_cache[session_id] = session.user_id
+    return session.user_id
 
 
 # --------------------------------------------------------------------------
@@ -70,6 +123,7 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     """Create a gaze session and return its id."""
     body = await request.json()
     session = GazepointSession(
+        user_id=uuid.uuid4(),
         page_name=body.get("page_name", "NA"),
         browser_width=int(body.get("browser_width") or 0),
         browser_height=int(body.get("browser_height") or 0),
@@ -81,33 +135,45 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     # Commit before returning: get_db's post-yield commit runs only after the
     # response is sent, which races with the client's next request.
     await db.commit()
-    return {"status": "success", "session_id": session.id}
+    _session_user_cache[session.id] = session.user_id
+    return {"status": "success", "session_id": session.id, "user_id": str(session.user_id)}
 
 
 @app.post("/api/points")
 async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
-    """Batch-store gaze points. Body: {points: [{session_id,x,y,timestamp,...}]}."""
+    """Queue gaze points for the next batch write.
+
+    Body: {points: [{session_id,x,y,timestamp,...}]}. Points are held in
+    memory and flushed to Postgres as a single bulk insert every
+    POINT_FLUSH_INTERVAL_SECONDS by `_flush_loop`, rather than being written
+    on every request.
+    """
     body = await request.json()
     points = body.get("points", [])
     if not points:
-        return {"status": "success", "stored": 0}
+        return {"status": "success", "queued": 0}
 
-    now = datetime.now(timezone.utc)
-    rows = [
-        GazepointData(
-            session_id=int(p["session_id"]),
-            x=float(p["x"]),
-            y=float(p["y"]),
-            timestamp=float(p["timestamp"]),
-            element=(p.get("element") or None),
-            subsection=(p.get("subsection") or None),
-            created_at=now,
+    queued = []
+    for p in points:
+        session_id = int(p["session_id"])
+        user_id = await _get_session_user_id(db, session_id)
+        queued.append(
+            dict(
+                session_id=session_id,
+                user_id=user_id,
+                x=float(p["x"]),
+                y=float(p["y"]),
+                timestamp=float(p["timestamp"]),
+                element=(p.get("element") or None),
+                html_element_id=(p.get("html_element_id") or None),
+                subsection=(p.get("subsection") or None),
+            )
         )
-        for p in points
-    ]
-    db.add_all(rows)
-    await db.commit()
-    return {"status": "success", "stored": len(rows)}
+
+    async with _buffer_lock:
+        _point_buffer.extend(queued)
+
+    return {"status": "success", "queued": len(queued)}
 
 
 # --------------------------------------------------------------------------
@@ -249,6 +315,10 @@ async def process_session(request: Request):
     session_id = body.get("session_id")
     if session_id is None:
         raise HTTPException(status_code=400, detail="session_id is required")
+
+    # Make sure any points still sitting in the in-memory batch buffer are
+    # persisted before the pipeline reads the session's points from Postgres.
+    await _flush_buffer()
 
     # Fetch dims + point count in a short-lived session, then release the
     # connection before the pipeline subprocesses touch the same SQLite file.

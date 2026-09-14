@@ -5,10 +5,8 @@ venv/
 .venv/
 *.egg-info/
 
-# SQLite database
-backend/gaze.db
-backend/gaze.db-wal
-backend/gaze.db-shm
+# Environment / secrets
+backend/.env
 
 # Pipeline working files (keep the folders via .gitkeep)
 backend/utils/raw_WG_data/*.csv

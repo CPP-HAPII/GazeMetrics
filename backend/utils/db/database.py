@@ -1,14 +1,15 @@
-"""Async SQLite database layer for the standalone eye-tracking demo.
+"""Async PostgreSQL database layer for the standalone eye-tracking demo.
 
-This replaces the original MySQL/aiomysql setup with a zero-config SQLite
-file (`gaze.db` in the backend root). Every pipeline script and the FastAPI
-app import `get_db` from here, so switching the engine in this single file
-propagates the change everywhere.
+Every pipeline script and the FastAPI app import `get_db` from here, so
+switching the engine in this single file propagates the change everywhere.
+
+Connection info comes from the `DATABASE_URL` environment variable (loaded
+from a local `.env` file via python-dotenv), never hardcoded. See
+`.env.example` in the backend root for the expected format.
 """
 import os
-from pathlib import Path
 
-from sqlalchemy import event
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
@@ -16,29 +17,20 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-# backend/ (three levels up: db -> utils -> backend)
-BASE_DIR = Path(__file__).resolve().parents[2]
-DB_PATH = os.getenv("GAZE_DB_PATH", str(BASE_DIR / "gaze.db"))
-db_url = f"sqlite+aiosqlite:///{DB_PATH}"
+load_dotenv()
 
-# A 30s busy timeout lets the FastAPI process and the pipeline subprocesses
-# take turns writing the same SQLite file without immediate "database is
-# locked" errors.
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. Copy .env.example to .env and fill in your "
+        "PostgreSQL connection string, e.g. "
+        "postgresql+asyncpg://user:password@localhost:5432/gazemetrics"
+    )
+
 engine = create_async_engine(
-    db_url,
+    DATABASE_URL,
     echo=False,
-    connect_args={"timeout": 30},
 )
-
-
-@event.listens_for(engine.sync_engine, "connect")
-def _set_sqlite_pragmas(dbapi_connection, connection_record):
-    """Enable WAL + a busy timeout so concurrent readers/writers coexist."""
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL;")
-    cursor.execute("PRAGMA busy_timeout=30000;")
-    cursor.close()
-
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

@@ -264,12 +264,14 @@
     if (!timeBegin) timeBegin = Date.now();
     const timeElapsed = (Date.now() - timeBegin) / 1000;
 
+    const el = document.elementFromPoint(data.x, data.y);
+
     dataCache.push({
       session_id: sessionId,
       x: parseInt(data.x, 10),
       y: parseInt(data.y, 10),
       timestamp: timeElapsed,
-      element: null,
+      html_element_id: el ? el.id : null,
       subsection: null,
     });
 
