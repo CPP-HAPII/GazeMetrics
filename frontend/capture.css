@@ -51,13 +51,6 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
 }
 #hud .dot.recording { background: #4ade80; animation: pulse 1.2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-#hudPoints { opacity: .85; font-variant-numeric: tabular-nums; }
-#finishBtn {
-  border: 0; border-radius: 999px; padding: 7px 14px;
-  background: #2f6fb0; color: #fff; font-size: 13px; cursor: pointer;
-}
-#finishBtn:disabled { background: #55657a; cursor: not-allowed; opacity: .7; }
-
 /* ——— Overlays (consent + calibration) ——— */
 .overlay {
   position: fixed;

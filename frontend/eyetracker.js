@@ -18,6 +18,7 @@
   const browserHeight = window.innerHeight;
 
   // DOM
+  const contentFrame = document.getElementById("contentFrame");
   const consentBackdrop = document.getElementById("consentBackdrop");
   const acceptBtn = document.getElementById("acceptBtn");
   const declineBtn = document.getElementById("declineBtn");
@@ -25,8 +26,6 @@
   const grid = document.getElementById("grid");
   const hudDot = document.getElementById("hudDot");
   const hudStatus = document.getElementById("hudStatus");
-  const hudPoints = document.getElementById("hudPoints");
-  const finishBtn = document.getElementById("finishBtn");
   const gazeDot = document.getElementById("gazeDot");
   const validate = document.getElementById("validate");
   const validateHint = document.getElementById("validateHint");
@@ -39,7 +38,6 @@
   // State
   let sessionId = null;
   let dataCache = [];
-  let pointsStored = 0;
   let calibrationFinish = false;
   let timeBegin = null;
   let logIntervalId = null;
@@ -117,8 +115,6 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ points: batch }),
       });
-      pointsStored += batch.length;
-      hudPoints.textContent = pointsStored + " points";
     } catch (e) {
       console.error("Failed to store points", e);
     }
@@ -231,7 +227,6 @@
     calibrationFinish = true;
     hudDot.classList.add("recording");
     hudStatus.textContent = "Recording gaze";
-    finishBtn.disabled = false;
     gazeDot.classList.add("show");   // reveal the live gaze dot
   }
 
@@ -264,14 +259,28 @@
     if (!timeBegin) timeBegin = Date.now();
     const timeElapsed = (Date.now() - timeBegin) / 1000;
 
-    const el = document.elementFromPoint(data.x, data.y);
+    // The exam content fills the viewport inside #contentFrame, so a hit on
+    // the top document resolves to the iframe itself. Coordinates map 1:1,
+    // so re-run the hit test inside the iframe's own document to find the
+    // actual question/answer element the gaze landed on.
+    let el = document.elementFromPoint(data.x, data.y);
+    if (el === contentFrame) {
+      try {
+        const frameEl = contentFrame.contentDocument.elementFromPoint(data.x, data.y);
+        if (frameEl) el = frameEl;
+      } catch { /* ignore */ }
+    }
+    // elementFromPoint returns the innermost element at that pixel (e.g. a
+    // <p> or <label> with no id), so walk up to the nearest ancestor that
+    // actually has one (the question/answer block).
+    const idEl = el && el.closest ? el.closest("[id]") : el;
 
     dataCache.push({
       session_id: sessionId,
       x: parseInt(data.x, 10),
       y: parseInt(data.y, 10),
       timestamp: timeElapsed,
-      html_element_id: el ? el.id : null,
+      html_element_id: idEl ? idEl.id : null,
       subsection: null,
     });
 
@@ -318,6 +327,10 @@
     if (logIntervalId) clearInterval(logIntervalId);
     try {
       window.webgazer?.pause?.();
+      // end() only pauses tracking and removes UI elements — it does not
+      // release the camera. stopVideo() is what actually stops the media
+      // stream track (turns off the camera).
+      window.webgazer?.stopVideo?.();
       window.webgazer?.clearData?.();
       window.webgazer?.end?.();
     } catch {
@@ -339,13 +352,15 @@
     buildCalibrationGrid();
   });
 
-  finishBtn.addEventListener("click", async () => {
-    finishBtn.disabled = true;
+  // Called by the exam content (via window.parent.finishExam()) when the
+  // user submits the last question — saves remaining points and stops
+  // WebGazer.
+  window.finishExam = async function () {
     hudStatus.textContent = "Saving…";
     await flushCache();
     endWebgazer();
-    window.location.href = "viewer.html?session_id=" + encodeURIComponent(sessionId);
-  });
+    hudStatus.textContent = "Submitted";
+  };
 
   window.addEventListener("beforeunload", () => {
     // Best-effort flush of remaining points on tab close.
