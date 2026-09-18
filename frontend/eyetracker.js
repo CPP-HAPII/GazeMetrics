@@ -250,6 +250,36 @@
     );
   }
 
+  // Nearest-edge distance from (x, y) to an element's box — 0 if the point is
+  // already inside it. Used instead of center-distance so a small element
+  // right next to the point isn't out-ranked by a large one whose center
+  // happens to be closer.
+  function distanceToRect(rect, x, y) {
+    const dx = Math.max(rect.left - x, 0, x - rect.right);
+    const dy = Math.max(rect.top - y, 0, y - rect.bottom);
+    return Math.hypot(dx, dy);
+  }
+
+  const FALLBACK_RADIUS = 18; // px — matches typical post-calibration WebGazer jitter
+
+  // Fallback for gaze that lands in an un-id'd gap (e.g. the flex gaps
+  // between answer options, which only bubble up to the whole-page
+  // container via closest("[id]")): probe a small radius around the point
+  // for the nearest question/answer block and use that instead.
+  function nearestLabeledElement(doc, x, y, radius) {
+    const candidates = doc.querySelectorAll('[id^="question-"], [id^="answer-"]');
+    let best = null;
+    let bestDist = Infinity;
+    for (const candidate of candidates) {
+      const dist = distanceToRect(candidate.getBoundingClientRect(), x, y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = candidate;
+      }
+    }
+    return bestDist <= radius ? best : null;
+  }
+
   async function logPoint() {
     if (!calibrationFinish || sessionId == null) return;
     const data = await window.webgazer.getCurrentPrediction();
@@ -264,9 +294,11 @@
     // so re-run the hit test inside the iframe's own document to find the
     // actual question/answer element the gaze landed on.
     let el = document.elementFromPoint(data.x, data.y);
+    let frameDoc = null;
     if (el === contentFrame) {
+      frameDoc = contentFrame.contentDocument;
       try {
-        const frameEl = contentFrame.contentDocument.elementFromPoint(data.x, data.y);
+        const frameEl = frameDoc.elementFromPoint(data.x, data.y);
         if (frameEl) el = frameEl;
       } catch { /* ignore */ }
     }
@@ -275,12 +307,21 @@
     // actually has one (the question/answer block).
     const idEl = el && el.closest ? el.closest("[id]") : el;
 
+    // closest("[id]") only found the whole-page container (id'd elements
+    // like question-*/answer-* skipped because the gap between them has no
+    // id of its own) — try the radius fallback before giving up the detail.
+    let html_element_id = idEl ? idEl.id : null;
+    if (frameDoc && idEl && idEl.classList.contains("card")) {
+      const nearest = nearestLabeledElement(frameDoc, data.x, data.y, FALLBACK_RADIUS);
+      if (nearest) html_element_id = nearest.id;
+    }
+
     dataCache.push({
       session_id: sessionId,
       x: parseInt(data.x, 10),
       y: parseInt(data.y, 10),
       timestamp: timeElapsed,
-      html_element_id: idEl ? idEl.id : null,
+      html_element_id,
       subsection: null,
     });
 
