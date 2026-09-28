@@ -28,11 +28,11 @@ sys.path.insert(0, str(UTILS_DIR))
 from fastapi import FastAPI, Depends, HTTPException, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
-from sqlalchemy import select, func  # noqa: E402
+from sqlalchemy import select, func, text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
-from db.models import GazepointSession, GazepointData, Fixation  # noqa: E402
+from db.models import GazepointSession, GazepointData, Fixation, GAZE_BATCH_SIZE  # noqa: E402
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -88,8 +88,36 @@ async def _flush_loop() -> None:
         await _flush_buffer()
 
 
+def _pack_points(points: list[dict]) -> list[dict]:
+    """Group buffered samples into chunks of GAZE_BATCH_SIZE per session,
+    preserving arrival order, and reshape each chunk into the packed
+    (x_values, y_values, timestamps, html_element_ids, sample_count) columns
+    that one GazepointData row stores."""
+    by_session: dict[int, list[dict]] = {}
+    for p in points:
+        by_session.setdefault(p["session_id"], []).append(p)
+
+    batches = []
+    for session_id, samples in by_session.items():
+        for i in range(0, len(samples), GAZE_BATCH_SIZE):
+            chunk = samples[i : i + GAZE_BATCH_SIZE]
+            batches.append(
+                dict(
+                    session_id=session_id,
+                    user_id=chunk[0]["user_id"],
+                    x_values=[s["x"] for s in chunk],
+                    y_values=[s["y"] for s in chunk],
+                    timestamps=[s["timestamp"] for s in chunk],
+                    html_element_ids=[s["html_element_id"] for s in chunk],
+                    sample_count=len(chunk),
+                )
+            )
+    return batches
+
+
 async def _flush_buffer() -> None:
-    """Write everything currently buffered to Postgres as one bulk insert."""
+    """Write everything currently buffered to Postgres as one bulk insert,
+    packing every GAZE_BATCH_SIZE samples per session into a single row."""
     global _point_buffer
     async with _buffer_lock:
         if not _point_buffer:
@@ -97,7 +125,7 @@ async def _flush_buffer() -> None:
         batch, _point_buffer = _point_buffer, []
 
     now = datetime.now(timezone.utc)
-    rows = [GazepointData(**item, created_at=now) for item in batch]
+    rows = [GazepointData(**item, created_at=now) for item in _pack_points(batch)]
     async with AsyncSessionLocal() as db:
         db.add_all(rows)
         await db.commit()
@@ -164,9 +192,7 @@ async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
                 x=float(p["x"]),
                 y=float(p["y"]),
                 timestamp=float(p["timestamp"]),
-                element=(p.get("element") or None),
                 html_element_id=(p.get("html_element_id") or None),
-                subsection=(p.get("subsection") or None),
             )
         )
 
@@ -185,7 +211,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
     """List sessions with gaze-point and fixation counts, newest first."""
     point_counts = dict(
         (await db.execute(
-            select(GazepointData.session_id, func.count(GazepointData.id))
+            select(GazepointData.session_id, func.sum(GazepointData.sample_count))
             .group_by(GazepointData.session_id)
         )).all()
     )
@@ -236,15 +262,22 @@ async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/points")
 async def get_points(session_id: int, db: AsyncSession = Depends(get_db)):
-    """Return raw gaze points (pixels) for a session, ordered by time."""
+    """Return raw gaze points (pixels) for a session, ordered by time.
+
+    Reads gazepoint_data_flat, which unnests the packed gazepoint_data rows
+    back into one row per sample, so callers see the same shape as before
+    row-batching was introduced.
+    """
     rows = (await db.execute(
-        select(GazepointData)
-        .where(GazepointData.session_id == session_id)
-        .order_by(GazepointData.timestamp)
-    )).scalars().all()
+        text(
+            "SELECT x, y, timestamp FROM gazepoint_data_flat "
+            "WHERE session_id = :session_id ORDER BY timestamp"
+        ),
+        {"session_id": session_id},
+    )).mappings().all()
     return {
         "status": "success",
-        "data": [{"x": r.x, "y": r.y, "timestamp": r.timestamp} for r in rows],
+        "data": [{"x": r["x"], "y": r["y"], "timestamp": r["timestamp"]} for r in rows],
     }
 
 
@@ -329,7 +362,7 @@ async def process_session(request: Request):
         screen_w = str(session.browser_width or 1920)
         screen_h = str(session.browser_height or 1080)
         point_count = (await db.execute(
-            select(func.count(GazepointData.id))
+            select(func.coalesce(func.sum(GazepointData.sample_count), 0))
             .where(GazepointData.session_id == int(session_id))
         )).scalar_one()
         already = (await db.execute(

@@ -322,7 +322,6 @@
       y: parseInt(data.y, 10),
       timestamp: timeElapsed,
       html_element_id,
-      subsection: null,
     });
 
     if (dataCache.length >= MAX_CACHE_SIZE) flushCache();

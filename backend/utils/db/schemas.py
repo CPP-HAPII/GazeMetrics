@@ -47,16 +47,30 @@ class GazepointSessionOut(GazepointSessionBase):
 # GazepointData Schemas
 # ----------------------------
 
+class GazepointBatchOut(BaseModel):
+    """One packed row: up to GAZE_BATCH_SIZE samples as parallel arrays."""
+    id: int
+    session_id: int
+    user_id: UUID
+    x_values: list[float]
+    y_values: list[float]
+    timestamps: list[float]
+    html_element_ids: list[str | None]
+    sample_count: int
+    created_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class GazepointDataOut(BaseModel):
+    """One raw sample, as read from the gazepoint_data_flat view."""
     id: int
     session_id: int
     user_id: UUID
     x: float
     y: float
     timestamp: float
-    element: str | None = None
     html_element_id: str | None = None
-    subsection: str | None = None
     created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
