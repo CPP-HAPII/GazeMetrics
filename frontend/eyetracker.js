@@ -14,6 +14,10 @@
   const CONSENT_KEY = "gazeConsent:v1";
   const PAGE_NAME = "sample-page";
 
+  // Backend may be hosted on a different origin than this static frontend
+  // (see config.js); "" keeps requests same-origin for local dev.
+  const API_BASE = window.API_BASE_URL || "";
+
   const browserWidth = window.innerWidth;
   const browserHeight = window.innerHeight;
 
@@ -92,7 +96,7 @@
   /* ---------------- backend calls ---------------- */
 
   async function createSession() {
-    const res = await fetch("/api/session", {
+    const res = await fetch(API_BASE + "/api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -110,7 +114,7 @@
     const batch = dataCache;
     dataCache = [];
     try {
-      await fetch("/api/points", {
+      await fetch(API_BASE + "/api/points", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ points: batch }),
@@ -406,7 +410,7 @@
     // Best-effort flush of remaining points on tab close.
     if (dataCache.length && sessionId != null && navigator.sendBeacon) {
       navigator.sendBeacon(
-        "/api/points",
+        API_BASE + "/api/points",
         new Blob([JSON.stringify({ points: dataCache })], { type: "application/json" })
       );
     }

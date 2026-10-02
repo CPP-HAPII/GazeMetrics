@@ -24,6 +24,10 @@
   let sessions = [];
   let currentSession = null;
 
+  // Backend may be hosted on a different origin than this static frontend
+  // (see config.js); "" keeps requests same-origin for local dev.
+  const API_BASE = window.API_BASE_URL || "";
+
   function setStatus(msg) { statusEl.textContent = msg || ""; }
 
   function loadHeatmapScript() {
@@ -36,8 +40,8 @@
     });
   }
 
-  async function fetchJSON(url, opts) {
-    const res = await fetch(url, opts);
+  async function fetchJSON(path, opts) {
+    const res = await fetch(API_BASE + path, opts);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.detail || res.statusText);
     return json;
