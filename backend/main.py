@@ -142,6 +142,12 @@ async def _get_session_user_id(db: AsyncSession, session_id: int) -> uuid.UUID:
     return session.user_id
 
 
+@app.get("/api/health")
+async def health():
+    """Cheap no-database ping, used by the frontend to wake a sleeping instance."""
+    return {"status": "ok"}
+
+
 # --------------------------------------------------------------------------
 # Capture endpoints
 # --------------------------------------------------------------------------
