@@ -15,6 +15,8 @@ class GazepointSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, nullable=False, default=uuid.uuid4, index=True
     )
+    # Free-text name/nickname/id the participant types in before starting.
+    participant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     page_name: Mapped[str] = mapped_column(String(255), nullable=False)
     browser_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     browser_height: Mapped[int | None] = mapped_column(Integer, nullable=True)

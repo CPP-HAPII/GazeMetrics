@@ -26,6 +26,8 @@
   const consentBackdrop = document.getElementById("consentBackdrop");
   const acceptBtn = document.getElementById("acceptBtn");
   const declineBtn = document.getElementById("declineBtn");
+  const participantNameInput = document.getElementById("participantName");
+  const participantNameError = document.getElementById("participantNameError");
   const calib = document.getElementById("calib");
   const grid = document.getElementById("grid");
   const hudDot = document.getElementById("hudDot");
@@ -41,6 +43,7 @@
 
   // State
   let sessionId = null;
+  let participantName = "";
   let dataCache = [];
   let calibrationFinish = false;
   let timeBegin = null;
@@ -69,14 +72,6 @@
 
   /* ---------------- consent ---------------- */
 
-  function getConsent() {
-    try {
-      return (JSON.parse(localStorage.getItem(CONSENT_KEY)) || {}).granted === true;
-    } catch {
-      return false;
-    }
-  }
-
   function setConsent(granted) {
     localStorage.setItem(CONSENT_KEY, JSON.stringify({ granted: !!granted, ts: Date.now() }));
   }
@@ -100,6 +95,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        participant_name: participantName,
         page_name: PAGE_NAME,
         browser_width: browserWidth,
         browser_height: browserHeight,
@@ -418,6 +414,12 @@
   });
 
   acceptBtn.addEventListener("click", () => {
+    participantName = participantNameInput.value.trim();
+    if (!participantName) {
+      participantNameError.classList.add("show");
+      participantNameInput.focus();
+      return;
+    }
     setConsent(true);
     consentBackdrop.classList.remove("show");
     startFlow();
@@ -429,10 +431,12 @@
     hudStatus.textContent = "Consent declined";
   });
 
-  // On load: skip the modal if consent was already granted.
-  if (getConsent()) {
-    startFlow();
-  } else {
-    consentBackdrop.classList.add("show");
-  }
+  participantNameInput.addEventListener("input", () => {
+    participantNameError.classList.remove("show");
+  });
+
+  // On load: always show the modal, since every session needs a participant
+  // name (the computer may be shared, so it is not remembered between visits).
+  consentBackdrop.classList.add("show");
+  participantNameInput.focus();
 })();

@@ -49,7 +49,8 @@
 
   function sessionLabel(s) {
     const when = s.created_at ? new Date(s.created_at).toLocaleString() : "unknown time";
-    return `#${s.id} · ${s.point_count} pts · ${s.fixation_count} fix · ${when}`;
+    const who = s.participant_name ? ` · ${s.participant_name}` : "";
+    return `#${s.id}${who} · ${s.point_count} pts · ${s.fixation_count} fix · ${when}`;
   }
 
   async function loadSessions(preselectId) {

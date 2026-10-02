@@ -31,6 +31,11 @@
         face are uploaded or stored. Only anonymous gaze coordinates are saved.
         You can stop at any time by closing the tab.
       </p>
+      <label class="field" for="participantName">
+        Your name, nickname or ID
+        <input id="participantName" type="text" maxlength="255" autocomplete="off" />
+      </label>
+      <p id="participantNameError" class="field-error">Please enter a name, nickname or ID to continue.</p>
       <div class="modal-actions">
         <button id="declineBtn" class="btn btn-secondary">Not now</button>
         <button id="acceptBtn" class="btn btn-primary">I agree</button>

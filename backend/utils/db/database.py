@@ -10,6 +10,7 @@ from a local `.env` file via python-dotenv), never hardcoded. See
 import os
 
 from dotenv import load_dotenv
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
@@ -62,4 +63,10 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all never alters an existing table, so columns added after a
+        # database was first created are applied here.
+        await conn.execute(text(
+            "ALTER TABLE gazepoint_sessions "
+            "ADD COLUMN IF NOT EXISTS participant_name VARCHAR(255)"
+        ))
         await create_flat_view(conn)

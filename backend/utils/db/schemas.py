@@ -36,6 +36,7 @@ class GazepointSessionBase(BaseModel):
 class GazepointSessionOut(GazepointSessionBase):
     id: int
     user_id: UUID
+    participant_name: str | None = None
     page_name: str
     browser_width: int | None = None
     browser_height: int | None = None

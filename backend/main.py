@@ -156,8 +156,10 @@ async def health():
 async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     """Create a gaze session and return its id."""
     body = await request.json()
+    participant_name = str(body.get("participant_name") or "").strip()[:255] or None
     session = GazepointSession(
         user_id=uuid.uuid4(),
+        participant_name=participant_name,
         page_name=body.get("page_name", "NA"),
         browser_width=int(body.get("browser_width") or 0),
         browser_height=int(body.get("browser_height") or 0),
@@ -236,6 +238,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
         "data": [
             {
                 "id": s.id,
+                "participant_name": s.participant_name,
                 "page_name": s.page_name,
                 "browser_width": s.browser_width,
                 "browser_height": s.browser_height,
@@ -258,6 +261,7 @@ async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
         "status": "success",
         "data": {
             "id": session.id,
+            "participant_name": session.participant_name,
             "page_name": session.page_name,
             "browser_width": session.browser_width,
             "browser_height": session.browser_height,
