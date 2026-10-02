@@ -52,6 +52,9 @@
   let sessionId = null;
   let participantName = "";
   let validationAttempt = 0;   // counts validation runs (recalibration repeats it)
+  let currentVisit = null;     // the exam page currently on screen
+  let visitIndex = 0;
+  let examFinished = false;
   let dataCache = [];
   let calibrationFinish = false;
   let timeBegin = null;
@@ -344,6 +347,10 @@
     validate.classList.remove("show");
     calib.classList.remove("show");
     calibrationFinish = true;
+    // Recording starts now: gaze timestamps and page-visit times are both
+    // measured from this moment, so they can be lined up afterwards.
+    timeBegin = Date.now();
+    openVisit();
     hudDot.classList.add("recording");
     hudStatus.textContent = "Recording gaze";
     gazeDot.classList.add("show");   // reveal the live gaze dot
@@ -357,6 +364,72 @@
     gazeDot.style.transform =
       "translate(" + data.x + "px, " + data.y + "px)";
   }
+
+  /* ---------------- page timing ---------------- */
+
+  // One "visit" per exam page shown in the iframe: which page/question it
+  // was, when it appeared, and how long it stayed. Each exam page holds one
+  // question, so the visit duration is the time spent on that question.
+  // Pages are identified by their id="page-N" / id="question-N" elements.
+  function describeFramePage() {
+    let doc = null;
+    try { doc = contentFrame.contentDocument; } catch { /* ignore */ }
+    const pageEl = doc && doc.querySelector('[id^="page-"]');
+    const questionEl = doc && doc.querySelector('[id^="question-"]');
+    return {
+      page_id: pageEl ? pageEl.id : null,
+      question_id: questionEl ? questionEl.id : null,
+      page_url: doc ? doc.location.pathname.split("/").pop() : null,
+    };
+  }
+
+  function openVisit() {
+    visitIndex += 1;
+    currentVisit = { ...describeFramePage(), visit_index: visitIndex, enteredAt: Date.now() };
+  }
+
+  // End the current visit and return it in the shape the backend stores.
+  function closeVisit() {
+    if (!currentVisit || sessionId == null) return null;
+    const visit = currentVisit;
+    currentVisit = null;
+    const now = Date.now();
+    return {
+      session_id: sessionId,
+      visit_index: visit.visit_index,
+      page_id: visit.page_id,
+      question_id: visit.question_id,
+      page_url: visit.page_url,
+      entered_at: new Date(visit.enteredAt).toISOString(),
+      left_at: new Date(now).toISOString(),
+      entered_elapsed: (visit.enteredAt - timeBegin) / 1000,
+      duration_seconds: (now - visit.enteredAt) / 1000,
+    };
+  }
+
+  // keepalive lets the request finish even if the tab is closing.
+  async function sendVisit(visit, keepalive = false) {
+    if (!visit) return;
+    try {
+      await fetch(API_BASE + "/api/page-visits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(visit),
+        keepalive,
+      });
+    } catch (e) {
+      console.error("Failed to store page visit", e);
+    }
+  }
+
+  // A new exam page finished loading: the previous page's visit ends and the
+  // new one begins. Loads before recording starts (the first page sits behind
+  // the consent/calibration overlays) and after the exam ends are ignored.
+  contentFrame.addEventListener("load", () => {
+    if (!calibrationFinish || examFinished) return;
+    sendVisit(closeVisit());
+    openVisit();
+  });
 
   /* ---------------- gaze logging ---------------- */
 
@@ -535,18 +608,26 @@
   // WebGazer.
   window.finishExam = async function () {
     hudStatus.textContent = "Saving…";
+    examFinished = true;
+    await sendVisit(closeVisit());
     await flushCache();
     endWebgazer();
     hudStatus.textContent = "Submitted";
   };
 
   window.addEventListener("beforeunload", () => {
-    // Best-effort flush of remaining points on tab close.
-    if (dataCache.length && sessionId != null && navigator.sendBeacon) {
-      navigator.sendBeacon(
-        API_BASE + "/api/points",
-        new Blob([JSON.stringify({ points: dataCache })], { type: "application/json" })
-      );
+    // Best-effort flush of the open page visit and remaining points on tab
+    // close. fetch+keepalive rather than sendBeacon: a beacon always sends
+    // credentials, which the backend's wildcard CORS policy rejects when the
+    // frontend is hosted on a different origin.
+    sendVisit(closeVisit(), true);
+    if (dataCache.length && sessionId != null) {
+      fetch(API_BASE + "/api/points", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: dataCache }),
+        keepalive: true,
+      }).catch(() => { /* ignore */ });
     }
     endWebgazer();
   });

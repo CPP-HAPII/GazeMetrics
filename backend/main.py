@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
 from db.models import (  # noqa: E402
-    GazepointSession, GazepointData, Fixation, ValidationPoint, GAZE_BATCH_SIZE,
+    GazepointSession, GazepointData, Fixation, ValidationPoint, PageVisit, GAZE_BATCH_SIZE,
 )
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
@@ -208,6 +208,44 @@ async def store_validation(request: Request, db: AsyncSession = Depends(get_db))
     ]
     db.add_all(rows)
     return {"status": "success", "stored": len(rows)}
+
+
+def _parse_client_time(value: str | None) -> datetime | None:
+    """Parse an ISO timestamp from the browser (Date.toISOString(), UTC 'Z')."""
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+@app.post("/api/page-visits")
+async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db)):
+    """Store one finished exam-page visit.
+
+    Body: {session_id, visit_index, page_id, question_id, page_url,
+    entered_at, left_at, entered_elapsed, duration_seconds}. Sent by the
+    capture page when the participant leaves a page.
+    """
+    body = await request.json()
+    session_id = int(body["session_id"])
+    if not await db.get(GazepointSession, session_id):
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    duration = body.get("duration_seconds")
+    db.add(
+        PageVisit(
+            session_id=session_id,
+            visit_index=int(body.get("visit_index") or 0),
+            page_id=body.get("page_id") or None,
+            question_id=body.get("question_id") or None,
+            page_url=body.get("page_url") or None,
+            entered_at=_parse_client_time(body.get("entered_at")),
+            left_at=_parse_client_time(body.get("left_at")),
+            entered_elapsed=float(body.get("entered_elapsed") or 0),
+            duration_seconds=float(duration) if duration is not None else None,
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    return {"status": "success"}
 
 
 @app.post("/api/points")

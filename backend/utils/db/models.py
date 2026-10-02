@@ -79,6 +79,30 @@ class ValidationPoint(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class PageVisit(Base):
+    """One exam page shown to the participant: which page/question it was,
+    when it appeared, and how long it stayed on screen. Each exam page holds
+    one question, so duration_seconds is the time spent on that question.
+    """
+    __tablename__ = "page_visits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
+    )
+    visit_index: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 = first page shown
+    page_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    question_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    page_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Wall-clock times as reported by the participant's browser.
+    entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Seconds since recording started: the same clock as gaze timestamps.
+    entered_elapsed: Mapped[float] = mapped_column(Float, nullable=False)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Fixation(Base):
     __tablename__ = "fixation_points"
 
