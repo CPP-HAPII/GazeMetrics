@@ -541,6 +541,10 @@
             .showFaceFeedbackBox(false)
             .showPredictionPoints(false)
             .applyKalmanFilter(true)   // smooth out prediction jitter
+            // WebGazer otherwise reloads calibration samples saved by earlier
+            // visits in this browser — a different sitting position, or a
+            // different person — and mixes them into the new model.
+            .saveDataAcrossSessions(false)
             .setGazeListener(function (data) { moveGazeDot(data); })
             .begin(),
           new Promise((_, reject) =>
@@ -558,6 +562,9 @@
       // learns from our deliberate calibration clicks (via recordScreenPosition).
       // (begin() adds them, so this must run after it has finished.)
       try { window.webgazer.removeMouseEventListeners(); } catch { /* ignore */ }
+
+      // Wipe any samples an earlier visit left in this browser's storage.
+      try { await window.webgazer.clearData(); } catch { /* ignore */ }
 
       // Only create the session once the camera works, so failed starts don't
       // leave empty sessions behind.
