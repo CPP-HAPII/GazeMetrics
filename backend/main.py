@@ -32,7 +32,9 @@ from sqlalchemy import select, func, text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
-from db.models import GazepointSession, GazepointData, Fixation, GAZE_BATCH_SIZE  # noqa: E402
+from db.models import (  # noqa: E402
+    GazepointSession, GazepointData, Fixation, ValidationPoint, GAZE_BATCH_SIZE,
+)
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -173,6 +175,39 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     await db.commit()
     _session_user_cache[session.id] = session.user_id
     return {"status": "success", "session_id": session.id, "user_id": str(session.user_id)}
+
+
+@app.post("/api/validation")
+async def store_validation(request: Request, db: AsyncSession = Depends(get_db)):
+    """Store the per-point accuracy of one post-calibration validation run.
+
+    Body: {session_id, attempt, points: [{point_index, target_x, target_y,
+    mean_error_px, sample_count}]}. mean_error_px is null for a point where
+    no gaze prediction was available.
+    """
+    body = await request.json()
+    session_id = int(body["session_id"])
+    if not await db.get(GazepointSession, session_id):
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    now = datetime.now(timezone.utc)
+    rows = [
+        ValidationPoint(
+            session_id=session_id,
+            attempt=int(body.get("attempt") or 1),
+            point_index=int(p["point_index"]),
+            target_x=float(p["target_x"]),
+            target_y=float(p["target_y"]),
+            mean_error_px=(
+                float(p["mean_error_px"]) if p.get("mean_error_px") is not None else None
+            ),
+            sample_count=int(p.get("sample_count") or 0),
+            created_at=now,
+        )
+        for p in body.get("points", [])
+    ]
+    db.add_all(rows)
+    return {"status": "success", "stored": len(rows)}
 
 
 @app.post("/api/points")
