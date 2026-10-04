@@ -82,11 +82,17 @@ main {
 .directions-body.compact .example-label { font-weight: 600; margin-bottom: 4px; }
 .example-choices {
   list-style: none;
-  display: flex;
-  gap: 36px;
   margin-bottom: 9px;
   padding-left: 22px;
 }
+.examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 9px;
+}
+.examples .example:first-child { padding-right: 28px; border-right: 1px solid #d7dee6; }
+.examples .example:last-child { padding-left: 28px; }
+.examples .example p:last-child { margin-bottom: 0; }
 .options { display: flex; flex-direction: column; gap: 16px; }
 .option {
   display: flex;
