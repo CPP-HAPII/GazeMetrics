@@ -47,17 +47,14 @@
       font-weight: 600;
       margin-bottom: 14px;
     }
-    .twister {
-      font-size: 32px;
-      line-height: 1.5;
-      color: #14304a;
-      font-style: italic;
+    .audio-block {
       margin-bottom: 40px;
       padding: 26px 30px;
       background: #f0f4f9;
       border-left: 5px solid #2f6fb0;
       border-radius: 6px;
     }
+    .audio-block audio { width: 100%; }
     .options { display: flex; flex-direction: column; gap: 16px; }
     .option {
       display: flex;
@@ -85,6 +82,37 @@
       transition: background .1s;
     }
     .btn:hover { background: #3a80c8; }
+    .submitted {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      flex: 1;
+      font-size: 24px;
+      color: #14304a;
+    }
+    .submitted.show { display: flex; }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 20, 33, .55);
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .overlay.show { display: flex; }
+    .overlay .modal {
+      background: #fff;
+      color: #1f2933;
+      max-width: 400px;
+      width: min(90vw, 400px);
+      border-radius: 14px;
+      padding: 28px 30px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .overlay .modal p { font-size: 17px; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -93,26 +121,44 @@
   </header>
 
   <main>
-    <section class="card" id="page-2">
-      <div class="prompt-label" id="instructions">Read the tongue twister, then answer below</div>
-      <div id="question-2">
-        <p class="twister">How much wood would a woodchuck chuck if a woodchuck could chuck wood?</p>
+    <section class="card" id="page-4">
+      <div class="prompt-label" id="instructions">Play audio, then answer the question with the following answer choices.</div>
+      <div id="question-4" class="audio-block">
+        <audio controls src="audio/q4.mp3"></audio>
       </div>
       <div class="options">
-        <div class="option" id="answer-a"><input type="radio" name="q2" id="q2-a" value="a"><label for="q2-a">A tongue twister about a woodchuck</label></div>
-        <div class="option" id="answer-b"><input type="radio" name="q2" id="q2-b" value="b"><label for="q2-b">A tongue twister about a carpenter</label></div>
-        <div class="option" id="answer-c"><input type="radio" name="q2" id="q2-c" value="c"><label for="q2-c">A tongue twister about a lumberjack</label></div>
-        <div class="option" id="answer-d"><input type="radio" name="q2" id="q2-d" value="d"><label for="q2-d">A tongue twister about a beaver</label></div>
+        <div class="option" id="answer-a"><input type="radio" name="q4" id="q4-a" value="a"><label for="q4-a">Answer choice A</label></div>
+        <div class="option" id="answer-b"><input type="radio" name="q4" id="q4-b" value="b"><label for="q4-b">Answer choice B</label></div>
+        <div class="option" id="answer-c"><input type="radio" name="q4" id="q4-c" value="c"><label for="q4-c">Answer choice C</label></div>
+        <div class="option" id="answer-d"><input type="radio" name="q4" id="q4-d" value="d"><label for="q4-d">Answer choice D</label></div>
       </div>
       <div class="actions">
-        <button class="btn" id="nextBtn">Next</button>
+        <button class="btn" id="submitBtn">Submit</button>
       </div>
     </section>
+    <div class="submitted" id="submitted">Submitted &mdash; thank you.</div>
   </main>
 
+  <div class="overlay" id="recordingOverlay">
+    <div class="modal">
+      <p>Recording is over.</p>
+      <button class="btn" id="popupOkBtn">OK</button>
+    </div>
+  </div>
+
   <script>
-    document.getElementById("nextBtn").addEventListener("click", () => {
-      window.location.href = "sample-page-3.html";
+    document.getElementById("submitBtn").addEventListener("click", async () => {
+      document.getElementById("submitBtn").disabled = true;
+      document.getElementById("page-4").style.display = "none";
+      document.getElementById("submitted").classList.add("show");
+      document.getElementById("recordingOverlay").classList.add("show");
+      try {
+        await window.parent.finishExam();
+      } catch { /* ignore */ }
+    });
+
+    document.getElementById("popupOkBtn").addEventListener("click", () => {
+      document.getElementById("recordingOverlay").classList.remove("show");
     });
   </script>
 </body>
