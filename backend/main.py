@@ -28,11 +28,13 @@ sys.path.insert(0, str(UTILS_DIR))
 from fastapi import FastAPI, Depends, HTTPException, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
-from sqlalchemy import select, func  # noqa: E402
+from sqlalchemy import select, func, text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
-from db.models import GazepointSession, GazepointData, Fixation  # noqa: E402
+from db.models import (  # noqa: E402
+    GazepointSession, GazepointData, Fixation, ValidationPoint, PageVisit, GAZE_BATCH_SIZE,
+)
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -88,8 +90,36 @@ async def _flush_loop() -> None:
         await _flush_buffer()
 
 
+def _pack_points(points: list[dict]) -> list[dict]:
+    """Group buffered samples into chunks of GAZE_BATCH_SIZE per session,
+    preserving arrival order, and reshape each chunk into the packed
+    (x_values, y_values, timestamps, html_element_ids, sample_count) columns
+    that one GazepointData row stores."""
+    by_session: dict[int, list[dict]] = {}
+    for p in points:
+        by_session.setdefault(p["session_id"], []).append(p)
+
+    batches = []
+    for session_id, samples in by_session.items():
+        for i in range(0, len(samples), GAZE_BATCH_SIZE):
+            chunk = samples[i : i + GAZE_BATCH_SIZE]
+            batches.append(
+                dict(
+                    session_id=session_id,
+                    user_id=chunk[0]["user_id"],
+                    x_values=[s["x"] for s in chunk],
+                    y_values=[s["y"] for s in chunk],
+                    timestamps=[s["timestamp"] for s in chunk],
+                    html_element_ids=[s["html_element_id"] for s in chunk],
+                    sample_count=len(chunk),
+                )
+            )
+    return batches
+
+
 async def _flush_buffer() -> None:
-    """Write everything currently buffered to Postgres as one bulk insert."""
+    """Write everything currently buffered to Postgres as one bulk insert,
+    packing every GAZE_BATCH_SIZE samples per session into a single row."""
     global _point_buffer
     async with _buffer_lock:
         if not _point_buffer:
@@ -97,7 +127,7 @@ async def _flush_buffer() -> None:
         batch, _point_buffer = _point_buffer, []
 
     now = datetime.now(timezone.utc)
-    rows = [GazepointData(**item, created_at=now) for item in batch]
+    rows = [GazepointData(**item, created_at=now) for item in _pack_points(batch)]
     async with AsyncSessionLocal() as db:
         db.add_all(rows)
         await db.commit()
@@ -114,6 +144,12 @@ async def _get_session_user_id(db: AsyncSession, session_id: int) -> uuid.UUID:
     return session.user_id
 
 
+@app.get("/api/health")
+async def health():
+    """Cheap no-database ping, used by the frontend to wake a sleeping instance."""
+    return {"status": "ok"}
+
+
 # --------------------------------------------------------------------------
 # Capture endpoints
 # --------------------------------------------------------------------------
@@ -122,8 +158,10 @@ async def _get_session_user_id(db: AsyncSession, session_id: int) -> uuid.UUID:
 async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     """Create a gaze session and return its id."""
     body = await request.json()
+    participant_name = str(body.get("participant_name") or "").strip()[:255] or None
     session = GazepointSession(
         user_id=uuid.uuid4(),
+        participant_name=participant_name,
         page_name=body.get("page_name", "NA"),
         browser_width=int(body.get("browser_width") or 0),
         browser_height=int(body.get("browser_height") or 0),
@@ -137,6 +175,77 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     await db.commit()
     _session_user_cache[session.id] = session.user_id
     return {"status": "success", "session_id": session.id, "user_id": str(session.user_id)}
+
+
+@app.post("/api/validation")
+async def store_validation(request: Request, db: AsyncSession = Depends(get_db)):
+    """Store the per-point accuracy of one post-calibration validation run.
+
+    Body: {session_id, attempt, points: [{point_index, target_x, target_y,
+    mean_error_px, sample_count}]}. mean_error_px is null for a point where
+    no gaze prediction was available.
+    """
+    body = await request.json()
+    session_id = int(body["session_id"])
+    if not await db.get(GazepointSession, session_id):
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    now = datetime.now(timezone.utc)
+    rows = [
+        ValidationPoint(
+            session_id=session_id,
+            attempt=int(body.get("attempt") or 1),
+            point_index=int(p["point_index"]),
+            target_x=float(p["target_x"]),
+            target_y=float(p["target_y"]),
+            mean_error_px=(
+                float(p["mean_error_px"]) if p.get("mean_error_px") is not None else None
+            ),
+            sample_count=int(p.get("sample_count") or 0),
+            created_at=now,
+        )
+        for p in body.get("points", [])
+    ]
+    db.add_all(rows)
+    return {"status": "success", "stored": len(rows)}
+
+
+def _parse_client_time(value: str | None) -> datetime | None:
+    """Parse an ISO timestamp from the browser (Date.toISOString(), UTC 'Z')."""
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+@app.post("/api/page-visits")
+async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db)):
+    """Store one finished exam-page visit.
+
+    Body: {session_id, visit_index, page_id, question_id, page_url,
+    entered_at, left_at, entered_elapsed, duration_seconds}. Sent by the
+    capture page when the participant leaves a page.
+    """
+    body = await request.json()
+    session_id = int(body["session_id"])
+    if not await db.get(GazepointSession, session_id):
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    duration = body.get("duration_seconds")
+    db.add(
+        PageVisit(
+            session_id=session_id,
+            visit_index=int(body.get("visit_index") or 0),
+            page_id=body.get("page_id") or None,
+            question_id=body.get("question_id") or None,
+            page_url=body.get("page_url") or None,
+            entered_at=_parse_client_time(body.get("entered_at")),
+            left_at=_parse_client_time(body.get("left_at")),
+            entered_elapsed=float(body.get("entered_elapsed") or 0),
+            duration_seconds=float(duration) if duration is not None else None,
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    return {"status": "success"}
 
 
 @app.post("/api/points")
@@ -164,9 +273,7 @@ async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
                 x=float(p["x"]),
                 y=float(p["y"]),
                 timestamp=float(p["timestamp"]),
-                element=(p.get("element") or None),
                 html_element_id=(p.get("html_element_id") or None),
-                subsection=(p.get("subsection") or None),
             )
         )
 
@@ -185,7 +292,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
     """List sessions with gaze-point and fixation counts, newest first."""
     point_counts = dict(
         (await db.execute(
-            select(GazepointData.session_id, func.count(GazepointData.id))
+            select(GazepointData.session_id, func.sum(GazepointData.sample_count))
             .group_by(GazepointData.session_id)
         )).all()
     )
@@ -204,6 +311,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
         "data": [
             {
                 "id": s.id,
+                "participant_name": s.participant_name,
                 "page_name": s.page_name,
                 "browser_width": s.browser_width,
                 "browser_height": s.browser_height,
@@ -226,6 +334,7 @@ async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
         "status": "success",
         "data": {
             "id": session.id,
+            "participant_name": session.participant_name,
             "page_name": session.page_name,
             "browser_width": session.browser_width,
             "browser_height": session.browser_height,
@@ -236,15 +345,22 @@ async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/points")
 async def get_points(session_id: int, db: AsyncSession = Depends(get_db)):
-    """Return raw gaze points (pixels) for a session, ordered by time."""
+    """Return raw gaze points (pixels) for a session, ordered by time.
+
+    Reads gazepoint_data_flat, which unnests the packed gazepoint_data rows
+    back into one row per sample, so callers see the same shape as before
+    row-batching was introduced.
+    """
     rows = (await db.execute(
-        select(GazepointData)
-        .where(GazepointData.session_id == session_id)
-        .order_by(GazepointData.timestamp)
-    )).scalars().all()
+        text(
+            "SELECT x, y, timestamp FROM gazepoint_data_flat "
+            "WHERE session_id = :session_id ORDER BY timestamp"
+        ),
+        {"session_id": session_id},
+    )).mappings().all()
     return {
         "status": "success",
-        "data": [{"x": r.x, "y": r.y, "timestamp": r.timestamp} for r in rows],
+        "data": [{"x": r["x"], "y": r["y"], "timestamp": r["timestamp"]} for r in rows],
     }
 
 
@@ -329,7 +445,7 @@ async def process_session(request: Request):
         screen_w = str(session.browser_width or 1920)
         screen_h = str(session.browser_height or 1080)
         point_count = (await db.execute(
-            select(func.count(GazepointData.id))
+            select(func.coalesce(func.sum(GazepointData.sample_count), 0))
             .where(GazepointData.session_id == int(session_id))
         )).scalar_one()
         already = (await db.execute(

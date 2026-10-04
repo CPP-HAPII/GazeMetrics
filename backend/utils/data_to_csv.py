@@ -2,25 +2,29 @@ import asyncio
 import sys
 from pathlib import Path
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.database import get_db
-from db.models import GazepointData
-from db.schemas import GazepointDataOut
 
 BASE_DIR = Path(__file__).parent
 DATA_PATH = BASE_DIR / "raw_WG_data"
 
-async def get_data_by_session(session_id: int, db: AsyncSession) -> list[GazepointDataOut]:
+async def get_data_by_session(session_id: int, db: AsyncSession) -> list[dict]:
+    """Read raw samples via gazepoint_data_flat, which unnests the packed
+    gazepoint_data rows back into one row per sample."""
     result = await db.execute(
-        select(GazepointData).where(GazepointData.session_id == session_id)
+        text(
+            "SELECT x, y, timestamp FROM gazepoint_data_flat "
+            "WHERE session_id = :session_id ORDER BY timestamp"
+        ),
+        {"session_id": session_id},
     )
-    return result.scalars().all()
+    return [dict(row) for row in result.mappings().all()]
 
-async def create_csv_from_data(session_id: int, data: list[GazepointDataOut]):
+async def create_csv_from_data(session_id: int, data: list[dict]):
     csv_path = DATA_PATH / f"session_{session_id}_data.csv"
 
-    df = pd.DataFrame([GazepointDataOut.model_validate(d).model_dump() for d in data])
+    df = pd.DataFrame(data)
     df.rename(columns={"timestamp": "TIME"}, inplace=True)
     df["TIMETICK"] = (df["TIME"] * 10_000_000).astype(int)
 
