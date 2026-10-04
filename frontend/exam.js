@@ -1,7 +1,7 @@
 /*
  * Shared exam renderer. Call startExam(pages) from the exam HTML file with
  * an array of page objects:
- *   { type: "directions", id, title, body, buttonLabel }
+ *   { type: "directions", id, title, body, buttonLabel, audioSrc?, compact? }
  *   { type: "audio",      id, instructions, audioSrc, choices, buttonLabel }
  *   { type: "text",       id, lines: [line1, line2], choices, buttonLabel }
  * The last entry always renders a "Submit" button that ends the exam.
@@ -46,9 +46,15 @@
       card.id = page.id;
 
       if (page.type === "directions") {
+        const audio = page.audioSrc ? `
+          <div id="${page.id}-media" class="audio-block">
+            <audio controls src="${page.audioSrc}"></audio>
+          </div>
+        ` : "";
         card.innerHTML = `
           <div class="directions-title">${page.title}</div>
-          <div class="directions-body">${page.body}</div>
+          ${audio}
+          <div class="directions-body${page.compact ? " compact" : ""}">${page.body}</div>
         `;
       } else if (page.type === "audio") {
         card.innerHTML = `

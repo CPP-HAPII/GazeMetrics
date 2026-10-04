@@ -71,6 +71,22 @@ main {
   color: #1f2933;
   flex: 1;
 }
+.directions-title + .audio-block { margin-bottom: 18px; padding: 14px 20px; }
+.directions-body.compact {
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 0;
+  overflow-y: auto;
+}
+.directions-body.compact p { margin-bottom: 9px; }
+.directions-body.compact .example-label { font-weight: 600; margin-bottom: 4px; }
+.example-choices {
+  list-style: none;
+  display: flex;
+  gap: 36px;
+  margin-bottom: 9px;
+  padding-left: 22px;
+}
 .options { display: flex; flex-direction: column; gap: 16px; }
 .option {
   display: flex;
