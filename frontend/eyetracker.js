@@ -12,6 +12,7 @@
   const DATAPOINTS_PER_SECOND = 10;
   const MAX_CACHE_SIZE = 20;
   const CONSENT_KEY = "gazeConsent:v1";
+  const PARTICIPANT_KEY = "examParticipant:v1";
   const PAGE_NAME = "sample-page";
   const CAMERA_START_TIMEOUT_MS = 30000;
 
@@ -88,6 +89,18 @@
 
   function setConsent(granted) {
     localStorage.setItem(CONSENT_KEY, JSON.stringify({ granted: !!granted, ts: Date.now() }));
+  }
+
+  // The exam keeps its progress for the life of the tab, so a reload resumes
+  // where it was. On a shared computer the next participant must not inherit
+  // that, so a different name starts the exam over.
+  function resetExamIfNewParticipant() {
+    const name = participantName.toLowerCase();
+    try {
+      if (sessionStorage.getItem(PARTICIPANT_KEY) === name) return;
+      contentFrame.contentWindow.resetExam();
+      sessionStorage.setItem(PARTICIPANT_KEY, name);
+    } catch { /* ignore */ }
   }
 
   /* ---------------- webgazer loading ---------------- */
@@ -647,6 +660,7 @@
       return;
     }
     setConsent(true);
+    resetExamIfNewParticipant();
     consentBackdrop.classList.remove("show");
     startFlow();
   });

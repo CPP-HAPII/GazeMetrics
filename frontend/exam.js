@@ -3,6 +3,7 @@
  * an array of page objects:
  *   { type: "directions", id, title, body, buttonLabel, audioSrc?, compact? }
  *   { type: "audio",      id, instructions, audioSrc, choices, buttonLabel }
+ *     (question audio can be played only once; directions audio is replayable)
  *   { type: "text",       id, lines: [line1, line2], choices, buttonLabel }
  * The last entry always renders a "Submit" button that ends the exam.
  */
@@ -28,8 +29,66 @@
     return wrap;
   }
 
+  // Drops the clip so it can't be resumed or restarted (e.g. by a keyboard
+  // media key) once it has ended or its page is gone.
+  function releaseAudio(audio) {
+    audio.removeAttribute("src");
+    audio.load();
+  }
+
+  // Question audio may be heard only once: a plain button instead of the
+  // native player (whose seek bar would allow re-listening), locked for good
+  // as soon as playback starts. onStarted runs once the clip is really
+  // playing; alreadyPlayed restores the locked state after a reload.
+  function setupPlayOnce(btn, src, alreadyPlayed, onStarted) {
+    if (alreadyPlayed) {
+      btn.disabled = true;
+      btn.textContent = "Audio played";
+      return null;
+    }
+    const audio = new Audio(src);
+    btn.addEventListener("click", () => {
+      btn.disabled = true;
+      btn.textContent = "Playing…";
+      audio.play().then(onStarted, () => {
+        // Never started (e.g. the file failed to load), so the one listen
+        // isn't used up.
+        btn.disabled = false;
+        btn.textContent = "Play audio";
+      });
+    });
+    audio.addEventListener("ended", () => {
+      btn.textContent = "Audio played";
+      releaseAudio(audio);
+    });
+    return audio;
+  }
+
   window.startExam = function (pages) {
-    let current = 0;
+    // Progress is kept in sessionStorage so a reload resumes on the same page
+    // (with a started question clip still locked) instead of restarting the
+    // exam. It lasts as long as the tab does.
+    const PROGRESS_KEY = "examProgress:" + location.pathname;
+
+    function loadProgress() {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(PROGRESS_KEY));
+        if (saved && Number.isInteger(saved.index) && saved.index >= 0 && saved.index < pages.length) {
+          return saved;
+        }
+      } catch { /* ignore */ }
+      return { index: 0, audioPlayed: false };
+    }
+
+    function saveProgress(index, audioPlayed) {
+      try {
+        sessionStorage.setItem(PROGRESS_KEY, JSON.stringify({ index, audioPlayed }));
+      } catch { /* ignore */ }
+    }
+
+    const progress = loadProgress();
+    let current = progress.index;
+    let questionAudio = null;
 
     // Looked up by class, not id: the container's id is overwritten below
     // to the current question's id (for gaze-tracking labels), so an
@@ -38,10 +97,16 @@
       return document.querySelector(".card");
     }
 
-    function renderPage(index) {
+    function renderPage(index, audioPlayed = false) {
+      saveProgress(index, audioPlayed);
       const page = pages[index];
       const isLast = index === pages.length - 1;
       const card = getCard();
+      // A clip still playing must not carry over onto the next page.
+      if (questionAudio) {
+        releaseAudio(questionAudio);
+        questionAudio = null;
+      }
       card.innerHTML = "";
       card.id = page.id;
 
@@ -60,9 +125,15 @@
         card.innerHTML = `
           <div class="prompt-label">${page.instructions}</div>
           <div id="${page.id}-media" class="audio-block">
-            <audio controls src="${page.audioSrc}"></audio>
+            <button type="button" class="btn play-once">Play audio</button>
           </div>
         `;
+        questionAudio = setupPlayOnce(
+          card.querySelector(".play-once"),
+          page.audioSrc,
+          audioPlayed,
+          () => saveProgress(index, true)
+        );
         card.appendChild(buildOptions(page.id, page.choices));
       } else if (page.type === "text") {
         card.innerHTML = `
@@ -95,6 +166,7 @@
 
     async function submitExam(btn) {
       btn.disabled = true;
+      try { sessionStorage.removeItem(PROGRESS_KEY); } catch { /* ignore */ }
       getCard().style.display = "none";
       document.getElementById("submitted").classList.add("show");
       document.getElementById("recordingOverlay").classList.add("show");
@@ -107,6 +179,13 @@
       document.getElementById("recordingOverlay").classList.remove("show");
     });
 
-    renderPage(current);
+    // Called by the capture page (eyetracker.js) when a different participant
+    // takes over this tab, so they don't resume someone else's exam.
+    window.resetExam = function () {
+      current = 0;
+      renderPage(current);
+    };
+
+    renderPage(current, progress.audioPlayed);
   };
 })();

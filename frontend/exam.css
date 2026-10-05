@@ -133,6 +133,7 @@ main {
   transition: background .1s;
 }
 .btn:hover { background: #3a80c8; }
+.btn:disabled { background: #9fb3c8; cursor: default; }
 .submitted {
   display: none;
   align-items: center;
