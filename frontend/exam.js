@@ -1,10 +1,13 @@
 /*
  * Shared exam renderer. Call startExam(pages) from the exam HTML file with
  * an array of page objects:
- *   { type: "directions", id, title, body, buttonLabel, audioSrc?, compact? }
+ *   { type: "directions", id, title, body, buttonLabel, audioSrc?, compact?, showPrevious? }
+ *     (showPrevious adds a "Previous" button back to the page before it;
+ *      directions pages sharing a `group` show a "Page x of n" counter)
  *   { type: "audio",      id, instructions, audioSrc, choices, buttonLabel }
  *     (question audio can be played only once; directions audio is replayable)
- *   { type: "text",       id, lines: [line1, line2], choices, buttonLabel }
+ *   { type: "text",       id, lines: [line1, line2?], choices, buttonLabel }
+ *   { type: "text",       id, passage, question, choices, buttonLabel }
  * The last entry always renders a "Submit" button that ends the exam.
  */
 (function () {
@@ -86,6 +89,9 @@
       } catch { /* ignore */ }
     }
 
+    // Questions are numbered by position, skipping the directions pages.
+    const questionPages = pages.filter((p) => p.type !== "directions");
+
     const progress = loadProgress();
     let current = progress.index;
     let questionAudio = null;
@@ -101,6 +107,8 @@
       saveProgress(index, audioPlayed);
       const page = pages[index];
       const isLast = index === pages.length - 1;
+      const number = questionPages.indexOf(page) + 1;
+      const numberLabel = `<span class="qnum">${number}.</span>`;
       const card = getCard();
       // A clip still playing must not carry over onto the next page.
       if (questionAudio) {
@@ -125,6 +133,7 @@
         card.innerHTML = `
           <div class="prompt-label">${page.instructions}</div>
           <div id="${page.id}-media" class="audio-block">
+            ${numberLabel}
             <button type="button" class="btn play-once">Play audio</button>
           </div>
         `;
@@ -136,18 +145,46 @@
         );
         card.appendChild(buildOptions(page.id, page.choices));
       } else if (page.type === "text") {
+        const prompt = page.lines
+          ? page.lines.map((line, i) => `<p class="line${i + 1}">${i === 0 ? numberLabel + " " : ""}${line}</p>`).join("")
+          : `<p>${numberLabel} ${page.passage}</p><p class="question">${page.question}</p>`;
         card.innerHTML = `
           <div class="prompt-label">Choose the best answer.</div>
-          <div id="${page.id}-prompt" class="dialogue">
-            <p class="line1">${page.lines[0]}</p>
-            <p class="line2">${page.lines[1]}</p>
-          </div>
+          <div id="${page.id}-prompt" class="dialogue">${prompt}</div>
         `;
         card.appendChild(buildOptions(page.id, page.choices));
       }
 
+      // Corner counter: question number, or the page's position within a
+      // multi-page set of directions (pages sharing the same `group`).
+      let countText = null;
+      if (page.type !== "directions") {
+        countText = `Question ${number} of ${questionPages.length}`;
+      } else if (page.group) {
+        const groupPages = pages.filter((p) => p.group === page.group);
+        countText = `Page ${groupPages.indexOf(page) + 1} of ${groupPages.length}`;
+      }
+      if (countText) {
+        const count = document.createElement("div");
+        count.className = "page-count";
+        count.textContent = countText;
+        card.appendChild(count);
+      }
+
       const actions = document.createElement("div");
       actions.className = "actions";
+      // Only multi-page directions opt in, so questions can't be revisited.
+      if (page.showPrevious && index > 0) {
+        const prev = document.createElement("button");
+        prev.className = "btn btn-secondary";
+        prev.id = `${page.id}-prev-btn`;
+        prev.textContent = "Previous";
+        prev.addEventListener("click", () => {
+          current -= 1;
+          renderPage(current);
+        });
+        actions.appendChild(prev);
+      }
       const btn = document.createElement("button");
       btn.className = "btn";
       btn.id = `${page.id}-btn`;

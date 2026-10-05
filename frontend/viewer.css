@@ -7,7 +7,7 @@ body { display: flex; flex-direction: column; height: 100vh; }
   align-items: center;
   gap: 16px;
   padding: 12px 20px;
-  background: #14304a;
+  background: #1E4D2B;
   color: #fff;
   flex-wrap: wrap;
 }
@@ -17,11 +17,11 @@ body { display: flex; flex-direction: column; height: 100vh; }
 
 .btn {
   border: 0; border-radius: 8px; padding: 8px 14px;
-  background: #2f6fb0; color: #fff; font-size: 14px; cursor: pointer;
+  background: #FFB500; color: #1E4D2B; font-size: 14px; cursor: pointer;
   text-decoration: none; display: inline-block;
 }
-.btn:disabled { background: #55657a; opacity: .7; cursor: not-allowed; }
-.btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,.4); }
+.btn:disabled { background: #5E7563; color: #fff; opacity: .7; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
 #status { font-size: 13px; opacity: .9; margin-left: auto; }
 
 #stagePanel {

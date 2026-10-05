@@ -9,7 +9,7 @@ body {
   height: 100vh;
 }
 header {
-  background: #14304a;
+  background: #1E4D2B;
   color: #fff;
   padding: 22px 40px;
   display: flex;
@@ -33,36 +33,47 @@ main {
   height: 80%;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+.page-count {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  font-size: 13px;
+  color: #5b6b5e;
 }
 .prompt-label {
   font-size: 15px;
-  color: #2f6fb0;
+  color: #1E4D2B;
   font-weight: 600;
   margin-bottom: 14px;
 }
 .dialogue {
   font-size: 22px;
   line-height: 1.6;
-  color: #14304a;
+  color: #1E4D2B;
   margin-bottom: 40px;
   padding: 26px 30px;
-  background: #f0f4f9;
-  border-left: 5px solid #2f6fb0;
+  background: #EEF5E6;
+  border-left: 5px solid #FFB500;
   border-radius: 6px;
 }
 .dialogue p { margin: 4px 0; }
 .dialogue p.line2 { padding-left: 22px; }
+.dialogue p.question { margin-top: 14px; font-weight: 600; }
 .audio-block {
   margin-bottom: 40px;
   padding: 26px 30px;
-  background: #f0f4f9;
-  border-left: 5px solid #2f6fb0;
+  background: #EEF5E6;
+  border-left: 5px solid #FFB500;
   border-radius: 6px;
 }
 .audio-block audio { width: 100%; }
+.qnum { font-weight: 600; }
+.audio-block .qnum { font-size: 22px; color: #1E4D2B; margin-right: 14px; }
 .directions-title {
   font-size: 28px;
-  color: #14304a;
+  color: #1E4D2B;
   margin-bottom: 20px;
 }
 .directions-body {
@@ -117,12 +128,12 @@ main {
   cursor: pointer;
   transition: border-color .1s, background .1s;
 }
-.option:hover { border-color: #2f6fb0; background: #f7fafd; }
-.option input { accent-color: #2f6fb0; width: 20px; height: 20px; }
+.option:hover { border-color: #FFB500; background: #F6FAF0; }
+.option input { accent-color: #1E4D2B; width: 20px; height: 20px; }
 .option label { font-size: 19px; cursor: pointer; flex: 1; }
 .actions { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 24px; }
 .btn {
-  background: #2f6fb0;
+  background: #1E4D2B;
   color: #fff;
   border: none;
   padding: 14px 34px;
@@ -132,8 +143,10 @@ main {
   cursor: pointer;
   transition: background .1s;
 }
-.btn:hover { background: #3a80c8; }
-.btn:disabled { background: #9fb3c8; cursor: default; }
+.btn:hover { background: #2B6B3D; }
+.btn:disabled { background: #A9B8AC; cursor: default; }
+.btn.btn-secondary { background: #E3EBDD; color: #1E4D2B; margin-right: auto; }
+.btn.btn-secondary:hover { background: #D3DFCB; }
 .submitted {
   display: none;
   align-items: center;
@@ -141,7 +154,7 @@ main {
   text-align: center;
   flex: 1;
   font-size: 24px;
-  color: #14304a;
+  color: #1E4D2B;
 }
 .submitted.show { display: flex; }
 .overlay {

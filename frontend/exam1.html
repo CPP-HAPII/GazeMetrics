@@ -206,10 +206,67 @@
       },
       {
         type: "directions",
-        id: "directions",
-        title: "Directions",
-        body: "Read each question carefully and choose the answer that best completes it. Replace this placeholder text with the exam's actual directions.",
-        buttonLabel: "Begin"
+        id: "written-directions-1",
+        title: "Grammar, Vocabulary, and Reading Comprehension",
+        group: "written-directions",
+        compact: true,
+        buttonLabel: "Next",
+        body: `
+          <p>This part of the test has three different kinds of problems. Numbers 21 through 50 are grammar, numbers 51 through 80 are vocabulary, and numbers 81 through 100 are reading comprehension.</p>
+          <p>In each grammar problem there is a short conversation between two people. The conversation is not complete. You should look at the answer choices which follow the conversation, and then choose the ONE answer that correctly completes the conversation.</p>
+          <p class="example-label">Example III.</p>
+          <p>“What’s your name?”<br>“_____ name is John.”</p>
+          <ul class="example-choices">
+            <li>a. I</li>
+            <li>b. Me</li>
+            <li>c. My</li>
+            <li>d. Mine</li>
+          </ul>
+          <p>The correct answer is choice c. On your answer sheet, for Example III, mark choice c. Answer all the grammar problems this way.</p>
+        `
+      },
+      {
+        type: "directions",
+        id: "written-directions-2",
+        title: "Grammar, Vocabulary, and Reading Comprehension",
+        group: "written-directions",
+        compact: true,
+        showPrevious: true,
+        buttonLabel: "Next",
+        body: `
+          <p>In each vocabulary problem there is a sentence with a word missing. From the answer choices following the sentence, you should choose the ONE word that best fits into the sentence and makes it meaningful.</p>
+          <p class="example-label">Example IV.</p>
+          <p>I can’t _____ you his name, because I don’t know it.</p>
+          <ul class="example-choices">
+            <li>a. talk</li>
+            <li>b. say</li>
+            <li>c. speak</li>
+            <li>d. tell</li>
+          </ul>
+          <p>The correct answer is choice d, “tell.” On your answer sheet, for Example IV, mark choice d. Answer all the vocabulary problems this way.</p>
+        `
+      },
+      {
+        type: "directions",
+        id: "written-directions-3",
+        title: "Grammar, Vocabulary, and Reading Comprehension",
+        group: "written-directions",
+        compact: true,
+        showPrevious: true,
+        buttonLabel: "Begin",
+        body: `
+          <p>In each reading comprehension problem you will read a sentence and then answer a question about it. Choose the ONE best answer to the question, using the information in the sentence you have just read.</p>
+          <p class="example-label">Example V.</p>
+          <p>John drove me to Eleanor’s house.<br>Who drove?</p>
+          <ul class="example-choices">
+            <li>a. I did.</li>
+            <li>b. John did.</li>
+            <li>c. John and I did.</li>
+            <li>d. Eleanor did.</li>
+          </ul>
+          <p>The correct answer is choice b, “John did.” On your answer sheet, mark choice b for Example V. Answer all the reading problems this way.</p>
+          <p>You will have 50 minutes to finish the rest of the test. Work as quickly as possible, and answer all the problems. If you are not sure of the correct answer, make a guess. Unanswered problems will be counted wrong. Now, go on to problem 21 and do not stop until you have finished problem 100.</p>
+        `
       },
       {
         type: "text",
@@ -270,6 +327,446 @@
         id: "q30",
         lines: ["“Isn’t Barbara having lunch today?”", "“No, she’s ____ she can’t take time to eat.”"],
         choices: ["so busy as", "as busy as", "such busy", "so busy that"]
+      },
+      {
+        type: "text",
+        id: "q31",
+        lines: ["“What are you washing?”", "“The ____.”"],
+        choices: ["soup spoons", "soups spoons", "spoons soup", "spoon soups"]
+      },
+      {
+        type: "text",
+        id: "q32",
+        lines: ["“I’m tired of waiting for John.”", "“If he doesn’t come soon, we’ll have ____ without him.”"],
+        choices: ["leaving", "to leaving", "to being left", "to leave"]
+      },
+      {
+        type: "text",
+        id: "q33",
+        lines: ["“Do you miss your boyfriend?”", "“Yes. I am always thinking ____ him.”"],
+        choices: ["to", "on", "of", "at"]
+      },
+      {
+        type: "text",
+        id: "q34",
+        lines: ["“What did you think of George’s request?”", "“I thought it was quite ____.”"],
+        choices: ["reasoning", "reasonable", "reasonably", "reason"]
+      },
+      {
+        type: "text",
+        id: "q35",
+        lines: ["“This restaurant is too crowded.”", "“Why don’t we go to the Metropole ____?”"],
+        choices: ["rather", "otherwise", "in case", "instead"]
+      },
+      {
+        type: "text",
+        id: "q36",
+        lines: ["“I’m from Chicago.”", "“Oh, I thought you ____ in Texas.”"],
+        choices: ["were born", "were borne", "had born", "was born"]
+      },
+      {
+        type: "text",
+        id: "q37",
+        lines: ["“Do you know Vincent?”", "“Yes he is a very ____ friend of mine.”"],
+        choices: ["closely", "closing", "close", "closed"]
+      },
+      {
+        type: "text",
+        id: "q38",
+        lines: ["“Do you usually walk to work this way?”", "“No, I ____ go this way.”"],
+        choices: ["hardly ever", "never hardly", "almost ever", "never almost"]
+      },
+      {
+        type: "text",
+        id: "q39",
+        lines: ["“Is this the way you want the chairs arranged?”", "“No, I want ____ closer.”"],
+        choices: ["them to be", "that they be", "that them be", "them be"]
+      },
+      {
+        type: "text",
+        id: "q40",
+        lines: ["“I failed the test.”", "“You should have listened ____ me and studied.”"],
+        choices: ["at", "for", "on", "to"]
+      },
+      {
+        type: "text",
+        id: "q41",
+        lines: ["“Did you see where Ed went?”", "“Yes, I saw ____ towards town.”"],
+        choices: ["his walking", "him walking", "him to walk", "him walked"]
+      },
+      {
+        type: "text",
+        id: "q42",
+        lines: ["“What’s this picture?”", "“This is the ship ____ we took to Europe.”"],
+        choices: ["what", "that", "who", "when"]
+      },
+      {
+        type: "text",
+        id: "q43",
+        lines: ["“Is Professor Watson well-liked?”", "“Yes, he’s ____ good teacher that his lecture are always full.”"],
+        choices: ["such a", "so much", "so", "a so"]
+      },
+      {
+        type: "text",
+        id: "q44",
+        lines: ["“Are you ready to go now?”", "“I’d like to finish ____ my room first.”"],
+        choices: ["clean", "cleaned", "cleaning", "to clean"]
+      },
+      {
+        type: "text",
+        id: "q45",
+        lines: ["“John was here for most of the afternoon.”", "“Exactly ____.was he here?”"],
+        choices: ["until", "while", "as long", "how long"]
+      },
+      {
+        type: "text",
+        id: "q46",
+        lines: ["“Why don’t you finish your work now?”", "“I’m ____ tired to do it right.”"],
+        choices: ["more", "very", "so", "too"]
+      },
+      {
+        type: "text",
+        id: "q47",
+        lines: ["“Do you like your new car?”", "“No, I wish I ____ bought it.”"],
+        choices: ["mustn’t", "haven’t", "hadn’t", "didn’t"]
+      },
+      {
+        type: "text",
+        id: "q48",
+        lines: ["“Did anything happen downtown?”", "“I saw some ____.”"],
+        choices: ["of your friends", "of yours friends", "your friends", "friends yours"]
+      },
+      {
+        type: "text",
+        id: "q49",
+        lines: ["“Can Donald show us the way?”", "“Yes, he’s ____ to guide us.”"],
+        choices: ["very experienced", "so experienced", "enough experienced", "experienced enough"]
+      },
+      {
+        type: "text",
+        id: "q50",
+        lines: ["“Are you going to both meetings?”", "“No, I’ll go to the first, ____ not the second.”"],
+        choices: ["otherwise", "but", "still", "instead"]
+      },
+      {
+        type: "text",
+        id: "q51",
+        lines: ["All the students like Miss Kincaid; she must be the most ____ teacher at school."],
+        choices: ["popular", "central", "ordinary", "sufficient"]
+      },
+      {
+        type: "text",
+        id: "q52",
+        lines: ["Our house needs a few ____ before we can try to sell it."],
+        choices: ["developments", "movements", "improvements", "conditions"]
+      },
+      {
+        type: "text",
+        id: "q53",
+        lines: ["Her father ____ her with everything she wanted."],
+        choices: ["possessed", "provided", "processed", "proposed"]
+      },
+      {
+        type: "text",
+        id: "q54",
+        lines: ["The trees ____ us from the sudden rain storm."],
+        choices: ["permitted", "surrounded", "contained", "sheltered"]
+      },
+      {
+        type: "text",
+        id: "q55",
+        lines: ["All the factories have made the ____ very dirty."],
+        choices: ["weather", "air", "breath", "gaze"]
+      },
+      {
+        type: "text",
+        id: "q56",
+        lines: ["If you do not eat healthy food, you may have a ____ of vitamins in your body."],
+        choices: ["lack", "loses", "discover", "prevent"]
+      },
+      {
+        type: "text",
+        id: "q57",
+        lines: ["I’m wearing my dark glasses because the sun is so ____."],
+        choices: ["light", "heavy", "bright", "big"]
+      },
+      {
+        type: "text",
+        id: "q58",
+        lines: ["I didn’t forget the book because my wife ____ me to bring it."],
+        choices: ["knew", "mention", "reminded", "remembered"]
+      },
+      {
+        type: "text",
+        id: "q59",
+        lines: ["He had to drive carefully to ____ the big holes in the road."],
+        choices: ["avoid", "extend", "guide", "delay"]
+      },
+      {
+        type: "text",
+        id: "q60",
+        lines: ["Not all the cake has been eaten; there’s still a small ____ left."],
+        choices: ["content", "division", "figure", "portion"]
+      },
+      {
+        type: "text",
+        id: "q61",
+        lines: ["You must ____ the weight of your baggage to 40 pounds."],
+        choices: ["check", "cover", "control", "limit"]
+      },
+      {
+        type: "text",
+        id: "q62",
+        lines: ["Bill likes to paint, and he ____ all his free time to it."],
+        choices: ["decides", "designs", "devotes", "displays"]
+      },
+      {
+        type: "text",
+        id: "q63",
+        lines: ["I couldn’t understand him because his ____ was so fast."],
+        choices: ["tone", "speech", "expression", "volume"]
+      },
+      {
+        type: "text",
+        id: "q64",
+        lines: ["He took off his coat and ____ it on the ground for us to sit on."],
+        choices: ["spread", "hung", "struck", "leaned"]
+      },
+      {
+        type: "text",
+        id: "q65",
+        lines: ["I couldn’t bring my dog, because animals aren’t ____ on the ship?"],
+        choices: ["agreed", "excused", "allowed", "consented"]
+      },
+      {
+        type: "text",
+        id: "q66",
+        lines: ["My parents gave me a ____ necklace for my birthday."],
+        choices: ["plentiful", "worthy", "wealthy", "valuable"]
+      },
+      {
+        type: "text",
+        id: "q67",
+        lines: ["The man on the bus was ____ at me as if he knew me."],
+        choices: ["staring", "viewing", "facing", "appearing"]
+      },
+      {
+        type: "text",
+        id: "q68",
+        lines: ["I saw that they were different colors when I ____ them in the sunlight."],
+        choices: ["expected", "sought", "shared", "compared"]
+      },
+      {
+        type: "text",
+        id: "q69",
+        lines: ["I need only a small ____ of sugar."],
+        choices: ["matter", "group", "amount", "sum"]
+      },
+      {
+        type: "text",
+        id: "q70",
+        lines: ["Gloria has no money left because she ____ it all on clothes?"],
+        choices: ["spent", "paid", "checked", "threw"]
+      },
+      {
+        type: "text",
+        id: "q71",
+        lines: ["I didn’t know who the teacher was until he was ____ out to me."],
+        choices: ["found", "pointed", "shown", "looked"]
+      },
+      {
+        type: "text",
+        id: "q72",
+        lines: ["I want to hang this picture on the wall; please give me that ____."],
+        choices: ["contract", "claim", "nail", "stick"]
+      },
+      {
+        type: "text",
+        id: "q73",
+        lines: ["The salesman said they would ____ the coat to my house tomorrow."],
+        choices: ["receive", "provide", "handle", "deliver"]
+      },
+      {
+        type: "text",
+        id: "q74",
+        lines: ["The doctor said father would get well soon, because his illness wasn’t very ____."],
+        choices: ["serious", "difficult", "hard", "heavy"]
+      },
+      {
+        type: "text",
+        id: "q75",
+        lines: ["He wrote his name on a ____ of paper."],
+        choices: ["slide", "slip", "skirt", "sign"]
+      },
+      {
+        type: "text",
+        id: "q76",
+        lines: ["We didn’t want anyone to hear us so we ____."],
+        choices: ["insisted", "expressed", "whispered", "announced"]
+      },
+      {
+        type: "text",
+        id: "q77",
+        lines: ["Andy is ____ to his classmates in math and chemistry."],
+        choices: ["various", "superior", "particular", "considerable"]
+      },
+      {
+        type: "text",
+        id: "q78",
+        lines: ["Our hard work ____ us success."],
+        choices: ["made", "pulled", "drew", "brought"]
+      },
+      {
+        type: "text",
+        id: "q79",
+        lines: ["The police tried to keep the angry crowd under ____."],
+        choices: ["control", "substance", "evidence", "alarm"]
+      },
+      {
+        type: "text",
+        id: "q80",
+        lines: ["I need some paper. Do you have any to ____?"],
+        choices: ["spend", "spare", "forgive", "belong"]
+      },
+      {
+        type: "text",
+        id: "q81",
+        passage: "Rita asked if I could give Paul a ride home.",
+        question: "Who needed a ride?",
+        choices: ["Paul did.", "I did.", "Rita did.", "Paul and Rita did."]
+      },
+      {
+        type: "text",
+        id: "q82",
+        passage: "What he says is clear and is obviously well-prepared, and this, among other things, has earned him the high regard of his colleagues.",
+        question: "How do his colleagues feel about him?",
+        choices: ["They don’t understand him.", "They ignore him.", "They’re jealous of him.", "They respect him."]
+      },
+      {
+        type: "text",
+        id: "q83",
+        passage: "Whereas Golden’s books became increasingly grim and gloomy as he grew older, Turin had never written a serious book or had the least desire to do so.",
+        question: "Did Turin write a serious book?",
+        choices: ["Yes, many of them.", "Yes, but only once.", "No, and he never wanted to.", "No, but he always wanted to."]
+      },
+      {
+        type: "text",
+        id: "q84",
+        passage: "Anybody who has the natural ability and education that Dave has doesn’t have to worry about getting a job.",
+        question: "Is Dave likely to get a job?",
+        choices: ["No, because he worries too much.", "No, because he lacks ability.", "Yes, without a doubt.", "Yes, if he goes to college."]
+      },
+      {
+        type: "text",
+        id: "q85",
+        passage: "This grant will enable the University to employ another assistant professor of Jewish history, rounding out its program of Jewish studies sufficiently to provide for a major in this field.",
+        question: "Before the grant, there was no . . .",
+        choices: ["possibility to major in Jewish studies.", "demand for course in Jewish studies.", "course in Jewish history.", "professor of Jewish studies."]
+      },
+      {
+        type: "text",
+        id: "q86",
+        passage: "There have certainly been many books as honest as this one, but there have probably been only a few as sensitive.",
+        question: "This book is remarkable because of its . . .",
+        choices: ["length.", "originality.", "honesty.", "sensitivity."]
+      },
+      {
+        type: "text",
+        id: "q87",
+        passage: "Perhaps most pleasing is that song birds missing from the city for almost a century are returning.",
+        question: "Song birds are now . . .",
+        choices: ["singing more pleasantly.", "coming back to the city.", "leaving the city.", "dying in the city."]
+      },
+      {
+        type: "text",
+        id: "q88",
+        passage: "They were not interested in his formal training, because what mattered was his ability to adapt himself to new situations.",
+        question: "The most important qualification was . . .",
+        choices: ["experience.", "adaptability.", "formal training.", "willingness to work hard."]
+      },
+      {
+        type: "text",
+        id: "q89",
+        passage: "He is a big, husky, active man with a hearty voice attributes that lend him a general aura of confidence.",
+        question: "He seems confident because of his . . .",
+        choices: ["generosity.", "intelligence.", "physical qualities.", "personality."]
+      },
+      {
+        type: "text",
+        id: "q90",
+        passage: "If you try to do too much at once, you’ll not only tire yourself, but also do a bad job.",
+        question: "The warning is against . . .",
+        choices: ["doing too many things.", "not trying hard enough.", "doing things only once.", "working too slowly."]
+      },
+      {
+        type: "text",
+        id: "q91",
+        passage: "The popularity of Palmerston as Prime Minister was based on the impression he gave of aggressiveness in foreign policy, but now we realize that his policies were exceedingly cautious.",
+        question: "People liked Palmerston because . . .",
+        choices: ["he was foreign.", "his policies were flexible.", "they thought he was cautious.", "they thought he was aggressive."]
+      },
+      {
+        type: "text",
+        id: "q92",
+        passage: "It wasn’t until he left home that he realized the great extent to which he depended on his brother.",
+        question: "How much did he depend on his brother?",
+        choices: ["Only slightly.", "Not at all.", "Quite a lot.", "Not at all until he left home."]
+      },
+      {
+        type: "text",
+        id: "q93",
+        passage: "Whether the child had been exposed to a chemical, had eaten bad food, or swallowed a foreign object, it was hard to say; but in any case, the child was very ill.",
+        question: "What caused the child’s illness?",
+        choices: ["It is uncertain.", "A disease.", "An injury.", "Poison."]
+      },
+      {
+        type: "text",
+        id: "q94",
+        passage: "The teachers were all told to ask their students to fill out the Student Questionnaires and return them by Thursday.",
+        question: "The forms were to be filled out by . . .",
+        choices: ["The students and the teachers.", "Neither the students nor the teachers.", "The teachers.", "The students."]
+      },
+      {
+        type: "text",
+        id: "q95",
+        passage: "Jerry said it wasn’t enough for Cramer to say he was sorry; he must also take responsibility for the damage he had done to the car.",
+        question: "Jerry wanted Cramer to . . .",
+        choices: ["stop damaging his car.", "pay for damages.", "apologize.", "return his car."]
+      },
+      {
+        type: "text",
+        id: "q96",
+        passage: "Roger says that sometimes he is ordered to undertake certain duties but is given insufficient funds or authority to accomplish the task.",
+        question: "Roger says he is unsuccessful because he lacks . . .",
+        choices: ["money and power.", "time and manpower.", "specific knowledge.", "confidence."]
+      },
+      {
+        type: "text",
+        id: "q97",
+        passage: "The Director foolishly expects everyone else to work the long hours that he does.",
+        question: "Who works long hours?",
+        choices: ["Everyone but the director.", "Only the fools.", "Everyone.", "The director."]
+      },
+      {
+        type: "text",
+        id: "q98",
+        passage: "For a variety of reasons, he had not been back home for five years, and now felt apprehensive about it, unsure about how disfigured or alien it might seem to him.",
+        question: "How did he feel about going home?",
+        choices: ["He was very happy about it.", "He was worried about it.", "He didn’t want to go at all.", "He didn’t care if he went or not."]
+      },
+      {
+        type: "text",
+        id: "q99",
+        passage: "Contrasting sharply with Nielson’s paintings, Triptych’s canvasses present us with a sense of loneliness and the inherent isolation of modern man.",
+        question: "Nielson’s paintings are . . .",
+        choices: ["very modern.", "unsuccessful.", "unlike Triptych’s.", "similar to Triptych’s."]
+      },
+      {
+        type: "text",
+        id: "q100",
+        passage: "As we grow up we learn to understand our cultural and historical roots but not to romanticize them.",
+        question: "Our attitudes towards the past should be . . .",
+        choices: ["negative.", "respectful.", "realistic.", "romantic."]
       }
     ];
   </script>

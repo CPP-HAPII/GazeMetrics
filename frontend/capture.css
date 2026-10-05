@@ -38,7 +38,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(20, 48, 74, .92);
+  background: rgba(30, 77, 43, .92);
   color: #fff;
   padding: 10px 14px;
   border-radius: 999px;
@@ -56,7 +56,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   position: fixed;
   inset: 0;
   z-index: 120;
-  background: rgba(8, 20, 33, .86);
+  background: rgba(10, 26, 15, .86);
   display: none;
   align-items: center;
   justify-content: center;
@@ -76,9 +76,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   padding: 26px 28px;
   box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
-.modal h2 { font-size: 21px; margin-bottom: 12px; color: #14304a; }
+.modal h2 { font-size: 21px; margin-bottom: 12px; color: #1E4D2B; }
 .modal p { font-size: 15px; line-height: 1.6; color: #52606d; }
-.modal .field { display: block; margin-top: 18px; font-size: 14px; font-weight: 600; color: #14304a; }
+.modal .field { display: block; margin-top: 18px; font-size: 14px; font-weight: 600; color: #1E4D2B; }
 .modal .field input {
   display: block; width: 100%; margin-top: 6px; padding: 10px 12px;
   font-size: 15px; border: 1px solid #c5ced8; border-radius: 8px;
@@ -87,8 +87,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
 .modal .field-error.show { display: block; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 22px; }
 .btn { border: 0; border-radius: 8px; padding: 10px 18px; font-size: 15px; cursor: pointer; }
-.btn-primary { background: #2f6fb0; color: #fff; }
-.btn-secondary { background: #e4e9f0; color: #52606d; }
+.btn-primary { background: #1E4D2B; color: #fff; }
+.btn-secondary { background: #E3EBDD; color: #52606d; }
 
 /* Face positioning: hint, a slot WebGazer's 320x240 camera preview is moved
    into by JS, and a continue button. */
