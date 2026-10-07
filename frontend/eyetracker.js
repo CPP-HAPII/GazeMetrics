@@ -383,16 +383,32 @@
   // One "visit" per exam page shown in the iframe: which page/question it
   // was, when it appeared, and how long it stayed. Each exam page holds one
   // question, so the visit duration is the time spent on that question.
-  // Pages are identified by their id="page-N" / id="question-N" elements.
   function describeFramePage() {
     let doc = null;
-    try { doc = contentFrame.contentDocument; } catch { /* ignore */ }
+    let examPage = null;
+    try {
+      doc = contentFrame.contentDocument;
+      examPage = contentFrame.contentWindow.currentExamPage || null;
+    } catch { /* ignore */ }
+    const page_url = doc ? doc.location.pathname.split("/").pop() : null;
+
+    // exam.js renders every page into one document and reports which one is
+    // showing; directions pages have no question.
+    if (examPage) {
+      return {
+        page_id: examPage.id,
+        question_id: examPage.type === "directions" ? null : examPage.id,
+        page_url,
+      };
+    }
+    // Pages that are separate HTML files (the sample pages) are identified by
+    // their id="page-N" / id="question-N" elements.
     const pageEl = doc && doc.querySelector('[id^="page-"]');
     const questionEl = doc && doc.querySelector('[id^="question-"]');
     return {
       page_id: pageEl ? pageEl.id : null,
       question_id: questionEl ? questionEl.id : null,
-      page_url: doc ? doc.location.pathname.split("/").pop() : null,
+      page_url,
     };
   }
 
@@ -435,13 +451,25 @@
     }
   }
 
-  // A new exam page finished loading: the previous page's visit ends and the
-  // new one begins. Loads before recording starts (the first page sits behind
-  // the consent/calibration overlays) and after the exam ends are ignored.
-  contentFrame.addEventListener("load", () => {
+  // The previous page's visit ends and the new one begins. Changes before
+  // recording starts (the first page sits behind the consent/calibration
+  // overlays) and after the exam ends are ignored.
+  function onPageChanged() {
     if (!calibrationFinish || examFinished) return;
     sendVisit(closeVisit());
     openVisit();
+  }
+
+  // Called by exam.js each time it shows a new page.
+  window.onExamPageShown = onPageChanged;
+
+  // Pages that are separate HTML files change by loading a new document.
+  // exam.js pages report their changes above instead, so skip those here.
+  contentFrame.addEventListener("load", () => {
+    try {
+      if (contentFrame.contentWindow.startExam) return;
+    } catch { /* ignore */ }
+    onPageChanged();
   });
 
   /* ---------------- gaze logging ---------------- */
@@ -470,9 +498,10 @@
   // Fallback for gaze that lands in an un-id'd gap (e.g. the flex gaps
   // between answer options, which only bubble up to the whole-page
   // container via closest("[id]")): probe a small radius around the point
-  // for the nearest question/answer block and use that instead.
-  function nearestLabeledElement(doc, x, y, radius) {
-    const candidates = doc.querySelectorAll('[id^="question-"], [id^="answer-"]');
+  // for the nearest id'd block inside that container (prompt, audio block,
+  // answer option, button) and use that instead.
+  function nearestLabeledElement(container, x, y, radius) {
+    const candidates = container.querySelectorAll("[id]");
     let best = null;
     let bestDist = Infinity;
     for (const candidate of candidates) {
@@ -512,12 +541,12 @@
     // actually has one (the question/answer block).
     const idEl = el && el.closest ? el.closest("[id]") : el;
 
-    // closest("[id]") only found the whole-page container (id'd elements
-    // like question-*/answer-* skipped because the gap between them has no
-    // id of its own) — try the radius fallback before giving up the detail.
+    // closest("[id]") only found the whole-page container (the id'd blocks
+    // inside it were skipped because the gap between them has no id of its
+    // own) — try the radius fallback before giving up the detail.
     let html_element_id = idEl ? idEl.id : null;
     if (frameDoc && idEl && idEl.classList.contains("card")) {
-      const nearest = nearestLabeledElement(frameDoc, data.x, data.y, FALLBACK_RADIUS);
+      const nearest = nearestLabeledElement(idEl, data.x, data.y, FALLBACK_RADIUS);
       if (nearest) html_element_id = nearest.id;
     }
 

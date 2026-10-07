@@ -118,6 +118,12 @@
       card.innerHTML = "";
       card.id = page.id;
 
+      // Tell the capture page (eyetracker.js) which page is now on screen, for
+      // per-question timing. Every page renders into this one document, so it
+      // can't tell from page loads.
+      window.currentExamPage = { id: page.id, type: page.type };
+      try { window.parent.onExamPageShown?.(window.currentExamPage); } catch { /* ignore */ }
+
       if (page.type === "directions") {
         const audio = page.audioSrc ? `
           <div id="${page.id}-media" class="audio-block">
