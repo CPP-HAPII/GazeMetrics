@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAL POLY ELI English Placement TEST</title>
+<!-- Handwriting font for the LaLaLab wordmark (needs internet; falls back to a cursive system font) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #1e4d2b;
+    --green-dark: #153a20;
+    --green-soft: #e4ede9;
+    --gold: #bd9b60;
+    --ink: #1c1f26;
+    --paper: #f7f6f2;
+    --line: #d8d5cc;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Designed for a 24" monitor (1920 x 1080). Sizes use vw/vh so it scales with the window. */
+
+  /* ---------- Nav bar: logos ---------- */
+  .nav {
+    flex: 0 0 auto;
+    height: 11vh;
+    min-height: 72px;
+    background: white;
+    border-bottom: 0.8vh solid var(--gold);
+    display: flex;
+    align-items: center;
+    padding: 0 4vw;
+  }
+  .nav-logos { display: flex; align-items: center; gap: 3vw; width: 100%; }
+  .nav-logos img { display: block; height: 6.5vh; width: auto; }
+
+  /* LaLaLab wordmark, drawn in text instead of an image */
+  .lala-badge {
+    display: inline-block;
+    margin-left: auto;
+    padding: 1.5vh 1.1vw;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #5f72a8 0%, #8f7ab0 50%, #d9928f 100%);
+    color: white;
+    text-decoration: none;
+    white-space: nowrap;
+    font-family: 'Kalam', 'Segoe Script', 'Bradley Hand', cursive;
+    font-size: 1.05vw;
+    line-height: 1.3;
+  }
+  .lala-badge u { text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+  .lala-badge:focus-visible { outline: 4px solid var(--gold); outline-offset: 3px; }
+
+  /* shown only if a logo file is missing */
+  .logo-fallback {
+    display: inline-block;
+    padding: 1.6vh 1vw;
+    border: 2px dashed var(--line);
+    border-radius: 6px;
+    font-size: 0.85vw;
+    color: #777;
+  }
+
+  /* ---------- Main area: title + ID + Start, centered ---------- */
+  .page {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4vh 4vw 5vh;
+  }
+  /* margin auto centers the card in the space above the institute name */
+  .start-card { width: 100%; max-width: 62vw; margin: auto 0; text-align: center; }
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 3.6vw;
+    line-height: 1.15;
+    color: var(--green);
+    margin: 0 0 5vh;
+    text-wrap: balance;
+  }
+  .field-group { max-width: 30vw; margin: 0 auto; }
+  input[type="text"] {
+    width: 100%;
+    font-size: 1.3vw;
+    padding: 1.8vh 1.2vw;
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    color: var(--ink);
+    text-align: center;
+  }
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--green);
+    box-shadow: 0 0 0 4px rgba(30, 77, 43, 0.18);
+  }
+  input.invalid { border-color: #b3261e; }
+
+  #start-btn {
+    width: 100%;
+    margin-top: 2vh;
+    padding: 2.4vh 1vw;
+    font-size: 1.6vw;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: white;
+    background: var(--green);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  #start-btn:hover { background: var(--green-dark); }
+  #start-btn:disabled { background: #a9b8ac; cursor: default; }
+  #start-btn:focus-visible { outline: 4px solid var(--gold); outline-offset: 3px; }
+
+  #error { min-height: 3vh; margin: 1.5vh 0 0; font-size: 0.9vw; color: #b3261e; }
+
+  /* Institute name near the bottom of the page */
+  .institute {
+    margin: 0;
+    text-align: center;
+    font-size: 1.3vw;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--green);
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Partners">
+  <div class="nav-logos">
+    <img src="assets/CPP_Primary_2C_Green_RGB-300px.png" alt="Cal Poly Pomona" data-fallback="CPP logo">
+    <img src="assets/hapii.png" alt="hapii" data-fallback="hapii logo">
+    <a href="https://sites.google.com/view/thelalalab/" target="_blank" rel="noopener" class="lala-badge"
+       aria-label="Linguistics and Language Laboratory (LaLaLab)">
+      <u>L</u>inguistics <u>a</u>nd <u>La</u>nguage <u>Lab</u>oratory
+    </a>
+  </div>
+</nav>
+
+<main class="page">
+  <form class="start-card" id="start-form" autocomplete="off" novalidate>
+    <h1>CAL POLY ELI<br>English Placement TEST</h1>
+    <div class="field-group">
+      <input type="text" id="participant-id" placeholder="Enter ID" aria-label="Enter ID" maxlength="64" autofocus>
+      <button type="submit" id="start-btn" disabled>Start</button>
+      <p id="error" role="alert"></p>
+    </div>
+  </form>
+  <p class="institute">Cal Poly English Language Institute</p>
+</main>
+
+<script>
+  // Where the Start button goes: the pre-calibration page, which leads to calibration and the exam.
+  const NEXT_PAGE = 'index.html';
+
+  // ----- Missing logo files show a labeled placeholder instead of a broken-image icon -----
+  function showFallback(img) {
+    const span = document.createElement('span');
+    span.className = 'logo-fallback';
+    span.textContent = img.dataset.fallback;
+    img.replaceWith(span);
+  }
+  document.querySelectorAll('.nav img').forEach(img => {
+    img.addEventListener('error', () => showFallback(img));
+    // The image may have already failed before this script ran, so check for that too.
+    if (img.complete && img.naturalWidth === 0) showFallback(img);
+  });
+
+  // ----- ID + Start -----
+  const form = document.getElementById('start-form');
+  const input = document.getElementById('participant-id');
+  const errorEl = document.getElementById('error');
+
+  function clearError() {
+    input.classList.remove('invalid');
+    errorEl.textContent = '';
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = input.value.trim();
+
+    if (!id) {
+      input.classList.add('invalid');
+      errorEl.textContent = 'Please enter your ID.';
+      input.focus();
+      return;
+    }
+
+    try {
+      sessionStorage.setItem('participantId', id);
+    } catch (err) { /* storage blocked */ }
+
+    // Also passed in the URL so the next page can read it even if storage is blocked.
+    window.location.href = NEXT_PAGE + '?id=' + encodeURIComponent(id);
+  });
+
+  // Start stays disabled until an ID has been typed.
+  const startBtn = document.getElementById('start-btn');
+  function updateStart() { startBtn.disabled = !input.value.trim(); }
+
+  input.addEventListener('input', clearError);
+  input.addEventListener('input', updateStart);
+  // pageshow also covers coming back with the ID still filled in.
+  window.addEventListener('pageshow', updateStart);
+</script>
+
+</body>
+</html>

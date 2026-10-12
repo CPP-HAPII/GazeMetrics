@@ -4,12 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Capture &mdash; Eye-Tracking Demo</title>
-  <link rel="stylesheet" href="capture.css" />
+  <link rel="stylesheet" href="capture.css?v=2" />
 </head>
 <body>
   <!-- The content the user looks at. Fills the viewport so gaze viewport-
-       coordinates map 1:1 to the content, and the viewer can reproduce it. -->
-  <iframe id="contentFrame" src="exam1.html" title="Sample content"></iframe>
+       coordinates map 1:1 to the content, and the viewer can reproduce it.
+       Kept hidden until calibration is finished and recording starts. -->
+  <iframe id="contentFrame" src="exam1.html" title="Sample content" style="visibility: hidden"></iframe>
 
   <!-- Real-time gaze dot (revealed after calibration) -->
   <div id="gazeDot"></div>
@@ -17,30 +18,12 @@
   <!-- Heads-up display -->
   <div id="hud">
     <span id="hudDot" class="dot"></span>
-    <span id="hudStatus">Waiting for consent&hellip;</span>
+    <span id="hudStatus">Loading eye tracker&hellip;</span>
   </div>
 
-  <!-- Consent modal -->
-  <div id="consentBackdrop" class="overlay">
-    <div class="modal">
-      <h2>Eye-Tracking Study Consent</h2>
-      <p>
-        This demo uses your webcam and <b>WebGazer</b> to estimate where you look
-        on the page, so it can build an attention heatmap. Your camera feed is
-        processed <b>locally in your browser</b> &mdash; no video or images of your
-        face are uploaded or stored. Only anonymous gaze coordinates are saved.
-        You can stop at any time by closing the tab.
-      </p>
-      <label class="field" for="participantName">
-        Your name, nickname or ID
-        <input id="participantName" type="text" maxlength="255" autocomplete="off" />
-      </label>
-      <p id="participantNameError" class="field-error">Please enter a name, nickname or ID to continue.</p>
-      <div class="modal-actions">
-        <button id="declineBtn" class="btn btn-secondary">Not now</button>
-        <button id="acceptBtn" class="btn btn-primary">I agree</button>
-      </div>
-    </div>
+  <!-- Loading cover: hides the exam until the eye tracker and camera are ready -->
+  <div id="loading" class="overlay show" style="background: #e5e7eb; color: #1f2933">
+    <p id="loadingText">Loading eye tracker&hellip;</p>
   </div>
 
   <!-- Camera error: shown when the webcam can't be started -->

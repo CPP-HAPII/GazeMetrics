@@ -27,10 +27,10 @@ main {
 .card {
   background: #fff;
   border-radius: 12px;
-  padding: 48px 56px;
+  padding: 40px 56px;
   box-shadow: 0 1px 3px rgba(16,42,67,.12);
-  width: 80%;
-  height: 80%;
+  width: 90%;
+  height: 90%;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -49,7 +49,7 @@ main {
   margin-bottom: 14px;
 }
 .dialogue {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.6;
   color: #1E4D2B;
   margin-bottom: 40px;
@@ -70,7 +70,7 @@ main {
 }
 .audio-block audio { width: 100%; }
 .qnum { font-weight: 600; }
-.audio-block .qnum { font-size: 22px; color: #1E4D2B; margin-right: 14px; }
+.audio-block .qnum { font-size: 24px; color: #1E4D2B; margin-right: 14px; }
 .directions-title {
   font-size: 28px;
   color: #1E4D2B;
@@ -87,8 +87,8 @@ main {
 /* The long directions page must fit without scrolling: on short screens the
    card grows a little, its padding shrinks and the text scales with height. */
 .card:has(.directions-body.compact) {
-  width: max(80%, min(94%, 1300px));
-  height: min(100%, max(80%, 680px));
+  width: max(90%, min(94%, 1300px));
+  height: min(100%, max(90%, 680px));
   padding-block: clamp(14px, 4.5vh, 48px);
 }
 .card:has(.directions-body.compact) .directions-title {
@@ -97,7 +97,7 @@ main {
 }
 .card:has(.directions-body.compact) .actions { padding-top: clamp(6px, 1.6vh, 24px); }
 .directions-body.compact {
-  font-size: clamp(10.5px, calc(1.48vh + 1.84px), 15px);
+  font-size: clamp(10.5px, calc(1.48vh + 1.84px), 17px);
   line-height: 1.5;
   min-height: 0;
   overflow: hidden;
@@ -109,6 +109,13 @@ main {
   margin-bottom: .6em;
   padding-left: 22px;
 }
+.example-choices li.correct {
+  background: #DDF0D0;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: -6px;
+  width: fit-content;
+}
 .examples {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -117,7 +124,10 @@ main {
 .examples .example:first-child { padding-right: 28px; border-right: 1px solid #d7dee6; }
 .examples .example:last-child { padding-left: 28px; }
 .examples .example p:last-child { margin-bottom: 0; }
-.options { display: flex; flex-direction: column; gap: 16px; }
+/* Answers sit at the bottom of the card, leaving a blank band between them and
+   the question that is wide enough for the eye tracker to tell the two apart. */
+.options { display: flex; flex-direction: column; gap: 16px; margin-top: auto; }
+.options ~ .actions { margin-top: 0; }
 .option {
   display: flex;
   align-items: center;
@@ -130,7 +140,7 @@ main {
 }
 .option:hover { border-color: #FFB500; background: #F6FAF0; }
 .option input { accent-color: #1E4D2B; width: 20px; height: 20px; }
-.option label { font-size: 19px; cursor: pointer; flex: 1; }
+.option label { font-size: 21px; cursor: pointer; flex: 1; }
 .actions { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 24px; }
 .btn {
   background: #1E4D2B;

@@ -1,7 +1,7 @@
 /*
  * Standalone WebGazer capture.
  *
- * Flow: consent -> load WebGazer -> create session -> 9-point calibration ->
+ * Flow: load WebGazer -> create session -> 9-point calibration ->
  * poll gaze predictions -> batch-POST to the backend. Coordinates are stored in
  * viewport pixels; because the content fills the viewport, they map 1:1 to the
  * page the viewer will reproduce.
@@ -11,7 +11,6 @@
 
   const DATAPOINTS_PER_SECOND = 10;
   const MAX_CACHE_SIZE = 20;
-  const CONSENT_KEY = "gazeConsent:v1";
   const PARTICIPANT_KEY = "examParticipant:v1";
   const PAGE_NAME = "sample-page";
   const CAMERA_START_TIMEOUT_MS = 30000;
@@ -25,18 +24,14 @@
 
   // DOM
   const contentFrame = document.getElementById("contentFrame");
-  const consentBackdrop = document.getElementById("consentBackdrop");
-  const acceptBtn = document.getElementById("acceptBtn");
-  const declineBtn = document.getElementById("declineBtn");
-  const participantNameInput = document.getElementById("participantName");
-  const participantNameError = document.getElementById("participantNameError");
-  const cameraErrorBackdrop = document.getElementById("cameraErrorBackdrop");
+  const loading = document.getElementById("loading");
+  const loadingText = document.getElementById("loadingText");
+  const cameraErrorBackdrop =document.getElementById("cameraErrorBackdrop");
   const cameraErrorText = document.getElementById("cameraErrorText");
   const cameraRetryBtn = document.getElementById("cameraRetryBtn");
   const position = document.getElementById("position");
   const previewSlot = document.getElementById("previewSlot");
-  const positionDoneBtn = document.getElementById("positionDoneBtn");
-  const calib = document.getElementById("calib");
+  const positionDoneBtn = document.getElementById("positionDoneBtn");  const calib = document.getElementById("calib");
   const grid = document.getElementById("grid");
   const hudDot = document.getElementById("hudDot");
   const hudStatus = document.getElementById("hudStatus");
@@ -85,10 +80,16 @@
   const POINT_ROWS = [8, 50, 92];
   const POINT_POSITIONS = POINT_ROWS.flatMap((y) => POINT_COLUMNS.map((x) => [x, y]));
 
-  /* ---------------- consent ---------------- */
+  /* ---------------- participant ---------------- */
 
-  function setConsent(granted) {
-    localStorage.setItem(CONSENT_KEY, JSON.stringify({ granted: !!granted, ts: Date.now() }));
+  // The ID typed on the landing page, passed in the URL (and in sessionStorage
+  // as a backup).
+  function readParticipantId() {
+    let id = new URLSearchParams(window.location.search).get("id");
+    if (!id) {
+      try { id = sessionStorage.getItem("participantId"); } catch { /* ignore */ }
+    }
+    return (id || "").trim();
   }
 
   // The exam keeps its progress for the life of the tab, so a reload resumes
@@ -101,6 +102,14 @@
       contentFrame.contentWindow.resetExam();
       sessionStorage.setItem(PARTICIPANT_KEY, name);
     } catch { /* ignore */ }
+  }
+
+  // resetExam only exists once the exam inside the iframe has loaded.
+  function whenExamReady(fn) {
+    try {
+      if (contentFrame.contentWindow.resetExam) { fn(); return; }
+    } catch { /* ignore */ }
+    contentFrame.addEventListener("load", fn, { once: true });
   }
 
   /* ---------------- webgazer loading ---------------- */
@@ -198,6 +207,7 @@
   function startPositioning() {
     hudStatus.textContent = "Checking camera…";
     position.classList.add("show");
+    loading.classList.remove("show");
     // WebGazer pins its preview to the top-left corner; move it into the
     // slot in our overlay and lift it above the overlay.
     const container = document.getElementById("webgazerVideoContainer");
@@ -359,6 +369,7 @@
   function finishCalibration() {
     validate.classList.remove("show");
     calib.classList.remove("show");
+    contentFrame.style.visibility = "visible";   // the exam is shown only now
     calibrationFinish = true;
     // Recording starts now: gaze timestamps and page-visit times are both
     // measured from this moment, so they can be lined up afterwards.
@@ -452,7 +463,7 @@
   }
 
   // The previous page's visit ends and the new one begins. Changes before
-  // recording starts (the first page sits behind the consent/calibration
+  // recording starts (the first page sits behind the positioning/calibration
   // overlays) and after the exam ends are ignored.
   function onPageChanged() {
     if (!calibrationFinish || examFinished) return;
@@ -618,6 +629,7 @@
     } catch (e) {
       console.error(e);
       hudStatus.textContent = "Error starting eye tracker";
+      loadingText.textContent = "Error starting eye tracker";
     }
   }
 
@@ -651,7 +663,6 @@
   });
 
   positionDoneBtn.addEventListener("click", finishPositioning);
-
   // Called by the exam content (via window.parent.finishExam()) when the
   // user submits the last question — saves remaining points and stops
   // WebGazer.
@@ -681,33 +692,15 @@
     endWebgazer();
   });
 
-  acceptBtn.addEventListener("click", () => {
-    participantName = participantNameInput.value.trim();
-    if (!participantName) {
-      participantNameError.classList.add("show");
-      participantNameInput.focus();
-      return;
-    }
-    setConsent(true);
-    resetExamIfNewParticipant();
-    consentBackdrop.classList.remove("show");
-    startFlow();
-  });
-
-  declineBtn.addEventListener("click", () => {
-    setConsent(false);
-    consentBackdrop.classList.remove("show");
-    hudStatus.textContent = "Consent declined";
-  });
-
   cameraRetryBtn.addEventListener("click", () => window.location.reload());
 
-  participantNameInput.addEventListener("input", () => {
-    participantNameError.classList.remove("show");
-  });
-
-  // On load: always show the modal, since every session needs a participant
-  // name (the computer may be shared, so it is not remembered between visits).
-  consentBackdrop.classList.add("show");
-  participantNameInput.focus();
+  // On load: every session needs a participant ID, which comes from the
+  // landing page. Without one, send the participant there to enter it.
+  participantName = readParticipantId();
+  if (!participantName) {
+    window.location.replace("landing.html");
+    return;
+  }
+  whenExamReady(resetExamIfNewParticipant);
+  startFlow();
 })();
