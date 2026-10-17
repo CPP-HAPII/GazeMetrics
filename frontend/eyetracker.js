@@ -59,9 +59,10 @@
   let started = false;
 
   const targets = [];
-  // Each click adds one training sample for that screen position; 5 per point
-  // is what WebGazer's own calibration uses.
-  const CLICKS_PER_TARGET = 5;
+  // Calibration timing (see buildCalibrationGrid).
+  const CALIB_HOLD_MS = 1000;             // how long a clicked dot shrinks while sampled
+  const CALIB_SAMPLE_INTERVAL_MS = 50;    // one training sample per 50 ms (~20 per dot)
+  const CALIB_GAP_MS = 250;               // pause before the next dot appears
 
   // Validation: show each evaluation point in turn, sample the prediction
   // while the user stares at it, and report the error so a bad calibration is
@@ -246,6 +247,12 @@
 
   /* ---------------- calibration ---------------- */
 
+  // Calibration shows one dot at a time, as in Psarra et al. The participant
+  // clicks it (which makes sure they are looking at it), then keeps looking
+  // while it shrinks away. WebGazer gets a training sample at the click and
+  // every CALIB_SAMPLE_INTERVAL_MS while it shrinks: about 20 clean samples
+  // per point, instead of a few rapid clicks with all dots on screen at once,
+  // when the eyes may already be moving on to the next dot.
   function buildCalibrationGrid() {
     grid.innerHTML = "";
     targets.length = 0;
@@ -258,34 +265,46 @@
       cell.style.top = yPct + "%";
       const dot = document.createElement("div");
       cell.appendChild(dot);
-      cell.dataset.count = "0";
-
       // The click target is the padded cell, not the 12px dot, so the small
       // dot is still easy to hit.
-      cell.addEventListener("click", (e) => {
-        e.stopPropagation();
-        // Train WebGazer on the dot's true screen position (not the raw cursor
-        // point), so every click is a clean calibration sample.
-        const rect = dot.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        try {
-          window.webgazer.recordScreenPosition(cx, cy, "click");
-        } catch { /* ignore */ }
-
-        const c = parseInt(cell.dataset.count, 10) + 1;
-        cell.dataset.count = String(c);
-        dot.style.transform = "scale(1.5)";
-        setTimeout(() => (dot.style.transform = "scale(1)"), 100);
-        if (c >= CLICKS_PER_TARGET) cell.classList.add("done");
-        if (targets.every((t) => parseInt(t.dataset.count, 10) >= CLICKS_PER_TARGET)) {
-          startValidation();
-        }
-      });
-
+      cell.addEventListener("click", onTargetClick);
       grid.appendChild(cell);
       targets.push(cell);
     }
+    showTarget(0);
+  }
+
+  function showTarget(index) {
+    targets.forEach((t, i) => t.classList.toggle("active", i === index));
+  }
+
+  function onTargetClick(e) {
+    e.stopPropagation();
+    const cell = e.currentTarget;
+    if (!cell.classList.contains("active") || cell.classList.contains("collecting")) return;
+    cell.classList.add("collecting");   // starts the shrink animation (capture.css)
+
+    // Train WebGazer on the dot's true screen position (not the raw cursor
+    // point). Measured before shrinking; scaling keeps the same centre.
+    const rect = cell.firstChild.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const record = () => {
+      try { window.webgazer.recordScreenPosition(cx, cy, "click"); } catch { /* ignore */ }
+    };
+    record();
+    const sampleTimer = setInterval(record, CALIB_SAMPLE_INTERVAL_MS);
+
+    setTimeout(() => {
+      clearInterval(sampleTimer);
+      cell.classList.remove("active", "collecting");
+      const next = targets.indexOf(cell) + 1;
+      if (next < targets.length) {
+        setTimeout(() => showTarget(next), CALIB_GAP_MS);
+      } else {
+        startValidation();
+      }
+    }, CALIB_HOLD_MS);
   }
 
   /* ---------------- validation ---------------- */
@@ -390,6 +409,7 @@
     // button keeps it, and the space bar would press it again.
     try { document.activeElement.blur(); } catch { /* ignore */ }
     try { contentFrame.contentWindow.focus(); } catch { /* ignore */ }
+    listenForExamClicks();
     calibrationFinish = true;
     // Recording starts now: gaze timestamps and page-visit times are both
     // measured from this moment, so they can be lined up afterwards.
@@ -497,11 +517,32 @@
   // Pages that are separate HTML files change by loading a new document.
   // exam.js pages report their changes above instead, so skip those here.
   contentFrame.addEventListener("load", () => {
+    listenForExamClicks();   // a newly loaded page needs the listener again
     try {
       if (contentFrame.contentWindow.startExam) return;
     } catch { /* ignore */ }
     onPageChanged();
   });
+
+  /* ---------------- learning from clicks during the test ---------------- */
+
+  // During the test every mouse click is also a training sample: people look
+  // at what they click (an answer, the Next button), so WebGazer keeps
+  // adjusting as the participant shifts in their seat over a long test.
+  // Mouse movement is still ignored, and keyboard "clicks" (no position)
+  // are skipped.
+  function onExamClick(e) {
+    if (!calibrationFinish || examFinished || e.detail === 0) return;
+    const frameRect = contentFrame.getBoundingClientRect();
+    try {
+      window.webgazer.recordScreenPosition(e.clientX + frameRect.left, e.clientY + frameRect.top, "click");
+    } catch { /* ignore */ }
+  }
+
+  // Safe to call repeatedly: the same listener is only added once per page.
+  function listenForExamClicks() {
+    try { contentFrame.contentDocument.addEventListener("click", onExamClick, true); } catch { /* ignore */ }
+  }
 
   /* ---------------- gaze logging ---------------- */
 

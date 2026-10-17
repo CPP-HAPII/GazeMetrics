@@ -123,9 +123,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
 .target > div {
   width: 12px; height: 12px; border-radius: 999px;
   background: #000;
-  transition: transform .1s;
 }
-.target.done { visibility: hidden; }
+/* One dot at a time: only the active one is shown. After its click it
+   shrinks over CALIB_HOLD_MS (eyetracker.js), which keeps the eyes on it
+   while training samples are recorded. */
+.target { visibility: hidden; }
+.target.active { visibility: visible; }
+.target.collecting { cursor: default; }
+.target.collecting > div { transform: scale(.2); transition: transform 1s linear; }
 
 /* Validation: one dot, moved between the grid positions by JS + result panel */
 #validateDot {
