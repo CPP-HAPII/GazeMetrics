@@ -767,6 +767,30 @@
       }
     ];
   </script>
+  <script src="reading-tasks.js"></script>
+  <script>
+    // Reading tasks come after the 100 questions: a directions page, then for
+    // each passage the passage itself (the space bar moves on) followed by
+    // its two questions, each on its own page.
+    PAGES.push({
+      type: "directions",
+      id: "reading-directions",
+      title: "Reading",
+      buttonLabel: "Begin",
+      body: `
+        <p>In this part you will read ${READING_TASKS.length} short passages. After each passage, you will answer two questions about it, one question per page.</p>
+        <p>Read each passage carefully at your normal reading speed. When you have finished reading, press the <b>space bar</b> to go on to the questions.</p>
+        <p>You cannot go back to a passage once you have moved on.</p>
+      `
+    });
+    READING_TASKS.forEach((task, i) => {
+      const id = `passage-${i + 1}`;
+      PAGES.push({ type: "reading", id, text: task.text });
+      task.questions.forEach((q, j) => {
+        PAGES.push({ type: "text", id: `${id}-q${j + 1}`, question: q.question, choices: q.choices });
+      });
+    });
+  </script>
   <script src="exam.js"></script>
   <script>
     startExam(PAGES);

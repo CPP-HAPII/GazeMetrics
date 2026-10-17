@@ -370,6 +370,10 @@
     validate.classList.remove("show");
     calib.classList.remove("show");
     contentFrame.style.visibility = "visible";   // the exam is shown only now
+    // Hand keyboard focus to the exam: otherwise the hidden "Start recording"
+    // button keeps it, and the space bar would press it again.
+    try { document.activeElement.blur(); } catch { /* ignore */ }
+    try { contentFrame.contentWindow.focus(); } catch { /* ignore */ }
     calibrationFinish = true;
     // Recording starts now: gaze timestamps and page-visit times are both
     // measured from this moment, so they can be lined up afterwards.
@@ -404,11 +408,11 @@
     const page_url = doc ? doc.location.pathname.split("/").pop() : null;
 
     // exam.js renders every page into one document and reports which one is
-    // showing; directions pages have no question.
+    // showing; directions and reading-passage pages have no question.
     if (examPage) {
       return {
         page_id: examPage.id,
-        question_id: examPage.type === "directions" ? null : examPage.id,
+        question_id: examPage.type === "directions" || examPage.type === "reading" ? null : examPage.id,
         page_url,
       };
     }
@@ -693,6 +697,17 @@
   });
 
   cameraRetryBtn.addEventListener("click", () => window.location.reload());
+
+  // The space bar ends a reading passage. If the key press lands on this page
+  // instead of the exam inside the iframe, pass it on.
+  document.addEventListener("keydown", (e) => {
+    if (e.code !== "Space" && e.key !== " ") return;
+    let win = null;
+    try { win = contentFrame.contentWindow; } catch { /* ignore */ }
+    if (!calibrationFinish || !win || !win.currentExamPage || win.currentExamPage.type !== "reading") return;
+    e.preventDefault();
+    if (!e.repeat) win.advanceReading();
+  });
 
   // On load: every session needs a participant ID, which comes from the
   // landing page. Without one, send the participant there to enter it.

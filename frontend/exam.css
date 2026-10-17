@@ -188,3 +188,22 @@ main {
   box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
 .overlay .modal p { font-size: 17px; margin-bottom: 20px; }
+
+/* Reading tasks. Passage pages follow Ben's spec: Consolas 20pt with 1.5 line
+   spacing; exam.js sets each passage's width so it wraps to about 10 lines.
+   The card uses the full space with less padding, so long passages still fit
+   on laptop screens. */
+.card.reading-card {
+  width: 100%;
+  height: 100%;
+  padding: 24px 32px;
+  justify-content: center;
+  align-items: center;
+}
+.reading-text {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 20pt;
+  line-height: 1.5;
+  max-width: 100%;
+  color: #1f2933;
+}
