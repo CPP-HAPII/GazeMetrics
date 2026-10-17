@@ -8,8 +8,7 @@ This fork adapts the original standalone demo into the assessment system used fo
 
 **https://gazemetrics-frontend.vercel.app/**
 
-- `/capture.html` — take the test with eye tracking
-- `/viewer.html` — view heatmaps and fixations for recorded sessions
+Opening this link goes straight to the welcome page, where the participant enters their ID. The viewer for recorded sessions is at `/viewer.html`.
 
 Share this link, not the Render address below and not a link that has extra characters after `gazemetrics-frontend` (those point at one old deployment and ask for a Vercel login).
 
@@ -31,18 +30,57 @@ browser (WebGazer)  ─►  Vercel: static frontend
 
 `frontend/config.js` decides where API calls go: same origin on `localhost` and on the Render address, and `https://gazemetrics.onrender.com` everywhere else (i.e. on Vercel).
 
-The Render free plan puts the backend to sleep after about 15 minutes without requests. The Vercel pages load immediately and wake the backend in the background, but the first request after a sleep can still take up to a minute.
+The Render free plan puts the backend to sleep after about 15 minutes without requests. The welcome page starts waking it while the participant types their ID, and the calibration screens don't wait for it: they take longer than the backend needs to wake, and the session is saved as soon as it answers.
 
 ## What a participant does
 
-1. **Consent and name** — agrees to the study and types a name, nickname or ID.
-2. **Camera check** — the page reports a blocked, missing or busy camera instead of continuing.
-3. **Face positioning** — a live camera preview with a square that turns green when both eyes are detected.
-4. **Calibration** — 18 black dots (6 × 3 grid, 12 px, light gray background), each clicked 5 times.
-5. **Accuracy check** — a dot moves through the same 18 positions, 3 seconds each; the average error is shown as Good / Fair / Poor, with the option to recalibrate.
-6. **Test** — the exam pages are shown one question per page while gaze is recorded about 10 times per second.
+1. **Welcome page** (`landing.html`) — enters their ID.
+2. **Start page** (`index.html`) — clicks **Calibrate & Capture**.
+3. **Camera check** — the page reports a blocked, missing or busy camera instead of continuing.
+4. **Face positioning** — a live camera preview with a square that turns green when both eyes are detected.
+5. **Calibration** — 18 black dots (6 × 3 grid, 12 px, light gray background), shown one at a time. The participant clicks each dot, then keeps looking at it while it shrinks for 1 second; the tracker records a training sample every 50 ms during that time (about 21 per dot).
+6. **Accuracy check** — a dot moves through the same 18 positions, 3 seconds each; the average error is shown as Good / Fair / Poor, with the option to recalibrate.
+7. **Test** — gaze is recorded about 10 times per second (see [The test](#the-test)). Every mouse click during the test also trains the tracker, since people look at what they click; this keeps it adjusting as the participant shifts over a long test.
 
-The 18-point layout, target size and colours follow Psarra, Krassanakis and Kesidis, *Systematic Performance Evaluation of WebGazer Webcam-Based Eye Tracking with Spatial and Angular Error Analysis*, J. Eye Mov. Res. 2026, 19, 99 (https://doi.org/10.3390/jemr19050099). The settings are constants at the top of `frontend/eyetracker.js`.
+The 18-point layout, target size and colours, and the one-dot-at-a-time calibration, follow Psarra, Krassanakis and Kesidis, *Systematic Performance Evaluation of WebGazer Webcam-Based Eye Tracking with Spatial and Angular Error Analysis*, J. Eye Mov. Res. 2026, 19, 99 (https://doi.org/10.3390/jemr19050099). The settings are constants at the top of `frontend/eyetracker.js`.
+
+### Testing shortcuts
+
+The start page has two extra links for the team:
+
+- **Skip calibration** — opens the test on its own, with no camera and nothing saved. Useful for checking how pages look.
+- **Skip to reading tasks (testing)** — the full tracking flow, but the test opens at the reading instructions instead of question 1.
+
+Any test page can also be opened directly with `?start=<page id>`, e.g. `exam1.html?start=passage-5`. Remove these links before real participants use the site.
+
+## The test
+
+Defined in `frontend/exam1.html` and rendered one page at a time by `frontend/exam.js`, inside the capture page.
+
+| Section | Pages |
+|---|---|
+| Listening Comprehension | directions with an audio example, then 20 audio questions (each clip plays only once) |
+| Grammar, Vocabulary, and Reading Comprehension | 3 directions pages, then 80 text questions (questions 21–100) |
+| Reading | directions, then 12 passages; each passage is followed by its 2 questions on separate pages (questions 101–124) |
+
+Questions can't be revisited once answered. A reload resumes on the same page; a different participant ID starts from the beginning.
+
+**Reading passages** (from `MECOL2.xlsx`, stored in `frontend/reading-tasks.js`) follow the supervisor's spec: Consolas 20pt, 1.5 line spacing, nothing else on screen, and the **space bar** (not a button) ends the passage, as explained on the reading directions page. Each passage's width is fitted so it wraps to about 10 lines; this works from about a 1920×960 browser window, and smaller windows wrap to more lines.
+
+### Gaze labels
+
+Every gaze sample is saved with the id of the element it landed on (`html_element_id`). Every word on every page has its own id saying where it is:
+
+| Example id | Meaning |
+|---|---|
+| `passage-3-l2-w17` | reading passage 3, line 2, word 17 |
+| `q95-passage-l1-w12` | question 95, its short passage, word 12 |
+| `q95-question-l1-w3` | question 95, the question itself, word 3 |
+| `q95-a-l1-w2` | question 95, answer a, word 2 |
+| `q1-play`, `q1-number`, `q1-counter`, `q1-btn` | Play button, question number, "Question x of y" counter, Next button |
+| `listening-directions-body-l5-w60` | a word in the directions text |
+
+The part before `-l` names the block a word belongs to (passage, question, answer a…), so results can be grouped by word, line or block. Line numbers are saved as they were on the participant's screen, since line breaks depend on screen size. A look that falls in a gap between words or blocks is saved as the nearest labelled word or block within 18 pixels.
 
 ## What is stored
 
@@ -54,9 +92,9 @@ The 18-point layout, target size and colours follow Psarra, Krassanakis and Kesi
 | `page_visits` | exam page shown | `page_id`, `question_id`, `entered_at`, `left_at`, `entered_elapsed`, `duration_seconds` |
 | `fixation_points` | fixation, after processing | `x`, `y`, `duration`, `timestamp` |
 
-- Read gaze samples through the `gazepoint_data_flat` view, which gives one row per sample with the question or answer element (`html_element_id`) the gaze landed on.
+- Read gaze samples through the `gazepoint_data_flat` view, which gives one row per sample with the element it landed on (`html_element_id`, see [Gaze labels](#gaze-labels)) and the session's `participant_name`.
 - Gaze `timestamp` and `page_visits.entered_elapsed` are both seconds since the participant clicked "Start recording", so they can be lined up.
-- `page_visits.duration_seconds` is the time spent on that page, which is the time spent on that question.
+- `page_visits` has one row per page shown, using the test's page ids (`q1` … `q100`, `passage-1`, `passage-1-q1`, …). `duration_seconds` is the time on that page: time per question on question pages, reading time on passage pages. `question_id` is empty for directions and reading-passage pages.
 - Clock times are stored in UTC.
 - No video or images are stored; the camera feed is processed in the browser.
 
@@ -72,13 +110,19 @@ SELECT id, participant_name,
        created_at AT TIME ZONE 'America/Los_Angeles' AS created_local
 FROM gazepoint_sessions ORDER BY id DESC LIMIT 10;
 
--- Gaze samples for one session
-SELECT x, y, timestamp, html_element_id
-FROM gazepoint_data_flat WHERE session_id = 1 ORDER BY timestamp;
+-- Gaze samples for one participant
+SELECT session_id, x, y, timestamp, html_element_id
+FROM gazepoint_data_flat WHERE participant_name = 'P001' ORDER BY session_id, timestamp;
 
--- Time spent on each question
+-- Time spent on each page (questions, passages, directions)
 SELECT visit_index, page_id, question_id, duration_seconds
 FROM page_visits WHERE session_id = 1 ORDER BY visit_index;
+
+-- Gaze samples per block of question 95 (passage, question, answers a-d)
+SELECT split_part(html_element_id, '-l', 1) AS block, count(*) AS samples
+FROM gazepoint_data_flat
+WHERE session_id = 1 AND html_element_id LIKE 'q95-%'
+GROUP BY block ORDER BY samples DESC;
 
 -- Calibration accuracy at each of the 18 points
 SELECT attempt, point_index, target_x, target_y, mean_error_px, sample_count
@@ -142,14 +186,19 @@ To check that the backend is awake and responding, open https://gazemetrics.onre
 
 ```
 frontend/
-  index.html              landing page
-  capture.html, .css      consent, calibration and recording page
-  eyetracker.js           capture logic: camera, calibration, accuracy check, gaze + page timing
-  sample-page.html        exam page 1 (shown inside capture.html)
-  sample-page-2.html      exam page 2
+  landing.html            welcome page: participant enters their ID
+  index.html              start page: Calibrate & Capture, plus the testing shortcuts
+  capture.html, .css      camera check, face positioning, calibration, accuracy check, recording
+  eyetracker.js           capture logic: camera, calibration, accuracy check, gaze labels, page timing
+  exam1.html              the test: page list for all sections
+  exam.js, exam.css       renders one test page at a time; word ids, reading passages, space bar
+  reading-tasks.js        the 12 reading passages and their 24 questions
+  audio/                  listening section audio
+  assets/                 logos
   viewer.html, .css       heatmap and fixation viewer
   heatmap.js              viewer logic
   config.js               backend address for the current host
+  sample-page*.html       old sample pages, no longer used by the capture page
 backend/
   main.py                 FastAPI app and all /api routes
   requirements.txt
@@ -158,24 +207,28 @@ backend/
   utils/*.py              ST-DBSCAN fixation pipeline
 ```
 
-Exam pages must keep one question per page, with `id="page-N"` on the page section and `id="question-N"` / `id="answer-…"` on the question and answers. Gaze labelling and page timing both depend on those ids.
+To add or change test pages, edit the `PAGES` list in `exam1.html`; the page types are described at the top of `exam.js`. Give every page a unique `id`: page timing and gaze labels are built from it. The capture page learns about page changes from `exam.js` (`onExamPageShown`), so pages must be rendered by `exam.js` rather than loaded as separate HTML files.
 
 ## Status
 
-- ✅ Capture, 18-point calibration, per-point accuracy check, heatmap viewer
-- ✅ PostgreSQL storage with batched writes, hosted on Supabase
-- ✅ Participant name, page timing and time per question
-- ✅ Frontend on Vercel, backend on Render
-- 🚧 **In progress:** the full test interface (100 sequential multiple-choice questions, 20 with audio), replacing the two sample pages
+- ✅ Welcome page with participant ID; capture with face positioning, one-dot-at-a-time 18-point calibration and per-point accuracy check
+- ✅ The full test: 20 listening questions, 80 written questions, 12 reading passages with 24 questions
+- ✅ Word-level gaze labels on every page, page timing, time per question and reading time per passage
+- ✅ PostgreSQL storage with batched writes, hosted on Supabase; frontend on Vercel, backend on Render
+- 🚧 Open questions: saving participants' answers, an "End test" button, and whether to hide the live gaze dot
 
 ## Notes and limitations
 
-- **Accuracy is coarse.** WebGazer is webcam-based; on an 18-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 18 points.
+- **Accuracy is coarse.** WebGazer is webcam-based; on an 18-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual words or answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 18 points.
+- **Answers are not saved.** The test records gaze and time per page, but not which option the participant chose.
+- **The live gaze dot is visible to participants** during the test. It can draw their eyes, so consider hiding it for real sessions.
+- **Small screens:** some question pages (e.g. question 91) cut off the Next button below about a 1920×960 browser window, and the pages can't scroll. Reading passages wrap to more than 10 lines on smaller windows.
+- **Consolas** is a Windows font; on a Mac without it, reading passages fall back to Courier New, which is wider, so lines wrap differently.
 - **Error is stored in pixels**, not degrees; screen size and viewing distance are not collected.
 - **The API has no login.** Anyone with the link can open the viewer and list sessions, including participant names.
-- **The viewer shows the first exam page only** as the background for every session.
+- **The viewer still shows the old sample page** as the background for every session, not the test page that was on screen.
 - **Fixation processing** needs at least 40 gaze points, and has not been verified on the hosted backend.
-- A Chromium-based browser (Chrome, Edge) is recommended, at 100% zoom, with no other app using the camera.
+- A Chromium-based browser (Chrome, Edge) is recommended, at 100% zoom, with no other app (Zoom, Teams, the Camera app) using the camera.
 
 ## Requirements
 
