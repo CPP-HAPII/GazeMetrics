@@ -25,6 +25,7 @@
   function buildOptions(pageId, choices) {
     const wrap = document.createElement("div");
     wrap.className = "options";
+    wrap.id = `${pageId}-options`;
     choices.forEach((text, i) => {
       const letter = LETTERS[i];
       const opt = document.createElement("div");
@@ -32,8 +33,10 @@
       opt.id = `${pageId}-${letter}`;
       opt.innerHTML = `
         <input type="radio" name="${pageId}" id="${pageId}-${letter}-input" value="${letter}">
-        <label for="${pageId}-${letter}-input">${text}</label>
+        <label id="${pageId}-${letter}-text" for="${pageId}-${letter}-input">${text}</label>
       `;
+      // Words of answer a are named q95-a-l1-w1, q95-a-l1-w2, ...
+      wrapWords(opt.querySelector("label"), `${pageId}-${letter}`);
       wrap.appendChild(opt);
     });
     return wrap;
@@ -104,21 +107,63 @@
     }
   }
 
-  // Give every word of a passage an id with its line and position, e.g.
-  // passage-3-l2-w17 (line 2, word 17), so the gaze data records which word
-  // and which line was looked at. Lines depend on the screen size, so this
-  // runs after the width has been fitted.
-  function labelWords(textEl, pageId) {
+  // Gaze is labelled with the id of the element it lands on, so the finer the
+  // ids, the more detailed the data. Every piece of text on a page is split
+  // into one span per word, and each word gets an id saying where it is, e.g.
+  // passage-3-l2-w17 (passage 3, line 2, word 17) or q95-a-l1-w2 (question
+  // 95, answer a, word 2). The part before -l is the id of the block it
+  // belongs to, so results can be grouped by word, line or block later.
+
+  // Wrap every word inside `el` in a span.word and mark `el` as a word group
+  // whose words are named `${base}-l<line>-w<n>` (by labelWords). Text in
+  // buttons, audio players and the question number is left alone.
+  function wrapWords(el, base) {
+    if (!el) return;
+    el.dataset.wordBase = base;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) =>
+        node.parentElement.closest("button, audio, .qnum") || !node.textContent.trim()
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_ACCEPT,
+    });
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    let index = 0;
+    textNodes.forEach((node) => {
+      const frag = document.createDocumentFragment();
+      node.textContent.split(/(\s+)/).forEach((part) => {
+        if (!part) return;
+        if (!part.trim()) {
+          frag.appendChild(document.createTextNode(part));
+          return;
+        }
+        const span = document.createElement("span");
+        span.className = "word";
+        span.dataset.index = String(++index);
+        span.textContent = part;
+        frag.appendChild(span);
+      });
+      node.replaceWith(frag);
+    });
+  }
+
+  // Name each word of a group by its line and position. Lines depend on the
+  // screen size, so this runs after layout (and again on resize).
+  function labelWords(groupEl, base) {
     let line = 0;
     let lastTop = null;
-    textEl.querySelectorAll(".word").forEach((span) => {
-      const top = span.offsetTop;
-      if (lastTop === null || top > lastTop + 2) {
+    groupEl.querySelectorAll(".word").forEach((span) => {
+      const top = span.getBoundingClientRect().top;
+      if (lastTop === null || Math.abs(top - lastTop) > 2) {
         line += 1;
         lastTop = top;
       }
-      span.id = `${pageId}-l${line}-w${span.dataset.index}`;
+      span.id = `${base}-l${line}-w${span.dataset.index}`;
     });
+  }
+
+  function labelAllWords(root) {
+    root.querySelectorAll("[data-word-base]").forEach((g) => labelWords(g, g.dataset.wordBase));
   }
 
   // The page id given as ?start=<id>, here or in the capture page's URL.
@@ -176,7 +221,7 @@
       const page = pages[index];
       const isLast = index === pages.length - 1;
       const number = questionPages.indexOf(page) + 1;
-      const numberLabel = `<span class="qnum">${number}.</span>`;
+      const numberLabel = `<span class="qnum" id="${page.id}-number">${number}.</span>`;
       const card = getCard();
       // A clip still playing must not carry over onto the next page.
       if (questionAudio) {
@@ -198,18 +243,11 @@
         const text = document.createElement("div");
         text.id = `${page.id}-text`;
         text.className = "reading-text";
-        // One span per word, so gaze can be labelled down to the word.
-        page.text.split(/\s+/).forEach((word, i) => {
-          if (i > 0) text.appendChild(document.createTextNode(" "));
-          const span = document.createElement("span");
-          span.className = "word";
-          span.dataset.index = String(i + 1);
-          span.textContent = word;
-          text.appendChild(span);
-        });
+        text.textContent = page.text;
+        wrapWords(text, page.id);
         card.appendChild(text);
         fitReadingWidth(text);
-        labelWords(text, page.id);
+        labelAllWords(card);
         // Make sure key presses reach this page, not the capture page around it.
         window.focus();
         return;
@@ -222,18 +260,24 @@
           </div>
         ` : "";
         card.innerHTML = `
-          <div class="directions-title">${page.title}</div>
+          <div id="${page.id}-title" class="directions-title">${page.title}</div>
           ${audio}
-          <div class="directions-body${page.compact ? " compact" : ""}">${page.body}</div>
+          <div id="${page.id}-body" class="directions-body${page.compact ? " compact" : ""}">${page.body}</div>
         `;
+        card.querySelectorAll(".directions-body .example").forEach((example, i) => {
+          if (!example.id) example.id = `${page.id}-example${i + 1}`;
+        });
+        wrapWords(card.querySelector(".directions-title"), `${page.id}-title`);
+        wrapWords(card.querySelector(".directions-body"), `${page.id}-body`);
       } else if (page.type === "audio") {
         card.innerHTML = `
-          <div class="prompt-label">${page.instructions}</div>
+          <div id="${page.id}-instructions" class="prompt-label">${page.instructions}</div>
           <div id="${page.id}-media" class="audio-block">
             ${numberLabel}
-            <button type="button" class="btn play-once">Play audio</button>
+            <button type="button" id="${page.id}-play" class="btn play-once">Play audio</button>
           </div>
         `;
+        wrapWords(card.querySelector(".prompt-label"), `${page.id}-instructions`);
         questionAudio = setupPlayOnce(
           card.querySelector(".play-once"),
           page.audioSrc,
@@ -242,15 +286,19 @@
         );
         card.appendChild(buildOptions(page.id, page.choices));
       } else if (page.type === "text") {
+        // Each part of the prompt gets its own id (line1/line2, passage,
+        // question) so the gaze data can tell them apart.
         const prompt = page.lines
-          ? page.lines.map((line, i) => `<p class="line${i + 1}">${i === 0 ? numberLabel + " " : ""}${line}</p>`).join("")
+          ? page.lines.map((line, i) => `<p id="${page.id}-line${i + 1}" class="line${i + 1}">${i === 0 ? numberLabel + " " : ""}${line}</p>`).join("")
           : page.passage
-            ? `<p>${numberLabel} ${page.passage}</p><p class="question">${page.question}</p>`
-            : `<p>${numberLabel} ${page.question}</p>`;
+            ? `<p id="${page.id}-passage">${numberLabel} ${page.passage}</p><p id="${page.id}-question" class="question">${page.question}</p>`
+            : `<p id="${page.id}-question">${numberLabel} ${page.question}</p>`;
         card.innerHTML = `
-          <div class="prompt-label">Choose the best answer.</div>
+          <div id="${page.id}-instructions" class="prompt-label">Choose the best answer.</div>
           <div id="${page.id}-prompt" class="dialogue">${prompt}</div>
         `;
+        wrapWords(card.querySelector(".prompt-label"), `${page.id}-instructions`);
+        card.querySelectorAll(".dialogue p").forEach((p) => wrapWords(p, p.id));
         card.appendChild(buildOptions(page.id, page.choices));
       }
 
@@ -266,6 +314,7 @@
       if (countText) {
         const count = document.createElement("div");
         count.className = "page-count";
+        count.id = `${page.id}-counter`;
         count.textContent = countText;
         card.appendChild(count);
       }
@@ -298,6 +347,9 @@
       });
       actions.appendChild(btn);
       card.appendChild(actions);
+
+      // Lines only exist once everything is laid out, so words are named last.
+      labelAllWords(card);
     }
 
     async function submitExam(btn) {
@@ -328,13 +380,12 @@
       if (!e.repeat) window.advanceReading();
     });
 
-    // A passage's width (and so its lines) depends on the window's, so refit
-    // and relabel it on resize.
+    // Where lines break depends on the window's size, so on resize refit a
+    // reading passage's width and rename every word by its new line.
     window.addEventListener("resize", () => {
       const text = document.querySelector(".reading-text");
-      if (!text) return;
-      fitReadingWidth(text);
-      labelWords(text, pages[current].id);
+      if (text) fitReadingWidth(text);
+      labelAllWords(getCard());
     });
 
     // Called by the capture page (eyetracker.js) when a different participant

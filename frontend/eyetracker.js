@@ -613,12 +613,12 @@
     // actually has one (the question/answer block).
     const idEl = el && el.closest ? el.closest("[id]") : el;
 
-    // closest("[id]") only found a container (the whole page, or a reading
-    // passage when the gaze falls between words or lines), because the gap
-    // has no id of its own — try the radius fallback to find the nearest
-    // block or word before giving up the detail.
+    // closest("[id]") only found a container (the whole page, a block of
+    // text, an answer option) because the gaze fell in a gap between words,
+    // lines or blocks, which has no id of its own — try the radius fallback
+    // to find the nearest word or block inside it before giving up the detail.
     let html_element_id = idEl ? idEl.id : null;
-    if (frameDoc && idEl && (idEl.classList.contains("card") || idEl.classList.contains("reading-text"))) {
+    if (frameDoc && idEl && idEl.querySelector("[id]")) {
       const nearest = nearestLabeledElement(idEl, data.x, data.y, FALLBACK_RADIUS);
       if (nearest) html_element_id = nearest.id;
     }
