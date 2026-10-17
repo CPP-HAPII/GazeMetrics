@@ -46,6 +46,7 @@
 
   // State
   let sessionId = null;
+  let sessionReady = Promise.resolve();   // settles once session creation is done
   let participantName = "";
   let validationAttempt = 0;   // counts validation runs (recalibration repeats it)
   let currentVisit = null;     // the exam page currently on screen
@@ -160,6 +161,20 @@
     sessionId = json.session_id;
   }
 
+  // A failed request (e.g. a network hiccup) is retried a few times before
+  // giving up, since nothing is saved without a session.
+  async function createSessionWithRetry() {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await createSession();
+        if (sessionId != null) return;
+      } catch (e) {
+        console.error("Failed to create session (attempt " + attempt + ")", e);
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+
   async function flushCache() {
     if (dataCache.length === 0) return;
     const batch = dataCache;
@@ -178,6 +193,7 @@
   // Save the per-point accuracy of one validation run. Best-effort: a failed
   // save must not stop the participant from starting.
   async function storeValidation(points) {
+    await sessionReady;
     if (sessionId == null) return;
     try {
       await fetch(API_BASE + "/api/validation", {
@@ -625,8 +641,11 @@
       try { await window.webgazer.clearData(); } catch { /* ignore */ }
 
       // Only create the session once the camera works, so failed starts don't
-      // leave empty sessions behind.
-      await createSession();
+      // leave empty sessions behind. Don't wait for it, though: a sleeping
+      // backend can take up to a minute to answer, and positioning plus
+      // calibration take longer than that. Gaze logging starts by itself
+      // once the session id arrives; the accuracy save waits for it.
+      sessionReady = createSessionWithRetry();
 
       startPositioning();
 

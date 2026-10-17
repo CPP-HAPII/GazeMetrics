@@ -4,6 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Eye-Tracking Analysis Demo</title>
+  <script>
+    // Without a participant ID, go straight to the landing page. This runs
+    // before anything is drawn, so this page never flashes on screen first.
+    (function () {
+      var id = new URLSearchParams(window.location.search).get("id");
+      if (!id) {
+        try { id = sessionStorage.getItem("participantId"); } catch (e) { /* ignore */ }
+      }
+      if (!(id || "").trim()) window.location.replace("landing.html");
+    })();
+  </script>
+  <!-- Start downloading the eye-tracking library now, so the capture page
+       finds it already in the browser's cache. -->
+  <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/webgazer@3.4.0/dist/webgazer.min.js" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {

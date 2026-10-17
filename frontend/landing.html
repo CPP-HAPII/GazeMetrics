@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>English Test</title>
+<!-- While the participant types their ID: download the eye-tracking library
+     into the browser's cache, and wake the backend (config.js), so the
+     capture page starts faster. -->
+<link rel="prefetch" href="https://cdn.jsdelivr.net/npm/webgazer@3.4.0/dist/webgazer.min.js">
+<script src="config.js"></script>
 <!-- Handwriting font for the LaLaLab wordmark (needs internet; falls back to a cursive system font) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
