@@ -104,6 +104,23 @@
     }
   }
 
+  // Give every word of a passage an id with its line and position, e.g.
+  // passage-3-l2-w17 (line 2, word 17), so the gaze data records which word
+  // and which line was looked at. Lines depend on the screen size, so this
+  // runs after the width has been fitted.
+  function labelWords(textEl, pageId) {
+    let line = 0;
+    let lastTop = null;
+    textEl.querySelectorAll(".word").forEach((span) => {
+      const top = span.offsetTop;
+      if (lastTop === null || top > lastTop + 2) {
+        line += 1;
+        lastTop = top;
+      }
+      span.id = `${pageId}-l${line}-w${span.dataset.index}`;
+    });
+  }
+
   // The page id given as ?start=<id>, here or in the capture page's URL.
   function requestedStartId() {
     let id = new URLSearchParams(location.search).get("start");
@@ -181,9 +198,18 @@
         const text = document.createElement("div");
         text.id = `${page.id}-text`;
         text.className = "reading-text";
-        text.textContent = page.text;
+        // One span per word, so gaze can be labelled down to the word.
+        page.text.split(/\s+/).forEach((word, i) => {
+          if (i > 0) text.appendChild(document.createTextNode(" "));
+          const span = document.createElement("span");
+          span.className = "word";
+          span.dataset.index = String(i + 1);
+          span.textContent = word;
+          text.appendChild(span);
+        });
         card.appendChild(text);
         fitReadingWidth(text);
+        labelWords(text, page.id);
         // Make sure key presses reach this page, not the capture page around it.
         window.focus();
         return;
@@ -302,10 +328,13 @@
       if (!e.repeat) window.advanceReading();
     });
 
-    // A passage's width depends on the window's, so refit it on resize.
+    // A passage's width (and so its lines) depends on the window's, so refit
+    // and relabel it on resize.
     window.addEventListener("resize", () => {
       const text = document.querySelector(".reading-text");
-      if (text) fitReadingWidth(text);
+      if (!text) return;
+      fitReadingWidth(text);
+      labelWords(text, pages[current].id);
     });
 
     // Called by the capture page (eyetracker.js) when a different participant
