@@ -430,9 +430,9 @@
 
   /* ---------------- page timing ---------------- */
 
-  // One "visit" per exam page shown in the iframe: which page/question it
-  // was, when it appeared, and how long it stayed. Each exam page holds one
-  // question, so the visit duration is the time spent on that question.
+  // One "visit" per exam page shown in the iframe: which page it was, when
+  // it appeared, how long it stayed, and the answers clicked on it. Each
+  // question has its own page, so the visit time is the time on that question.
   function describeFramePage() {
     let doc = null;
     let examPage = null;
@@ -440,31 +440,19 @@
       doc = contentFrame.contentDocument;
       examPage = contentFrame.contentWindow.currentExamPage || null;
     } catch { /* ignore */ }
-    const page_url = doc ? doc.location.pathname.split("/").pop() : null;
 
     // exam.js renders every page into one document and reports which one is
-    // showing; directions and reading-passage pages have no question.
-    if (examPage) {
-      return {
-        page_id: examPage.id,
-        question_id: examPage.type === "directions" || examPage.type === "reading" ? null : examPage.id,
-        page_url,
-      };
-    }
-    // Pages that are separate HTML files (the sample pages) are identified by
-    // their id="page-N" / id="question-N" elements.
+    // showing, and its type: directions, audio, text or reading.
+    if (examPage) return { page_id: examPage.id, page_type: examPage.type };
+    // Pages that are separate HTML files (the old sample pages) are
+    // identified by their id="page-N" element.
     const pageEl = doc && doc.querySelector('[id^="page-"]');
-    const questionEl = doc && doc.querySelector('[id^="question-"]');
-    return {
-      page_id: pageEl ? pageEl.id : null,
-      question_id: questionEl ? questionEl.id : null,
-      page_url,
-    };
+    return { page_id: pageEl ? pageEl.id : null, page_type: null };
   }
 
   function openVisit() {
     visitIndex += 1;
-    currentVisit = { ...describeFramePage(), visit_index: visitIndex, enteredAt: Date.now() };
+    currentVisit = { ...describeFramePage(), page_order: visitIndex, enteredAt: Date.now(), answers: [] };
   }
 
   // End the current visit and return it in the shape the backend stores.
@@ -475,14 +463,13 @@
     const now = Date.now();
     return {
       session_id: sessionId,
-      visit_index: visit.visit_index,
+      page_order: visit.page_order,
       page_id: visit.page_id,
-      question_id: visit.question_id,
-      page_url: visit.page_url,
-      entered_at: new Date(visit.enteredAt).toISOString(),
-      left_at: new Date(now).toISOString(),
-      entered_elapsed: (visit.enteredAt - timeBegin) / 1000,
-      duration_seconds: (now - visit.enteredAt) / 1000,
+      page_type: visit.page_type,
+      started_at: new Date(visit.enteredAt).toISOString(),
+      seconds_from_start: (visit.enteredAt - timeBegin) / 1000,
+      seconds_on_page: (now - visit.enteredAt) / 1000,
+      answers: visit.answers,
     };
   }
 
@@ -515,31 +502,17 @@
 
   /* ---------------- answers ---------------- */
 
-  // Called by exam.js whenever the participant selects an answer choice.
-  // Every selection is saved with its time, so changed answers are kept too;
-  // the final answer is the last one (final_answers view in the database).
-  window.onAnswerSelected = async function (answer) {
-    if (!calibrationFinish || examFinished) return;
-    const now = Date.now();
-    const event = {
-      question_id: answer.question_id,
-      choice: answer.choice,
-      choice_text: answer.choice_text,
-      selected_at: new Date(now).toISOString(),
-      elapsed_seconds: (now - timeBegin) / 1000,
-    };
-    await sessionReady;
-    if (sessionId == null) return;
-    try {
-      await fetch(API_BASE + "/api/answers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, ...event }),
-        keepalive: true,   // the participant may click Next right away
-      });
-    } catch (e) {
-      console.error("Failed to store answer", e);
-    }
+  // Called by exam.js whenever the participant selects an answer choice. The
+  // answer is kept with the page it was given on and saved with that page
+  // when the participant leaves it: every click with its time, so changed
+  // answers show too, and the last one as the answer.
+  window.onAnswerSelected = function (answer) {
+    if (!calibrationFinish || examFinished || !currentVisit) return;
+    currentVisit.answers.push({
+      answer: answer.choice,
+      answer_text: answer.choice_text,
+      seconds: (Date.now() - timeBegin) / 1000,
+    });
   };
 
   // Pages that are separate HTML files change by loading a new document.
@@ -656,6 +629,7 @@
       x: parseInt(data.x, 10),
       y: parseInt(data.y, 10),
       timestamp: timeElapsed,
+      page_id: currentVisit ? currentVisit.page_id : null,
       html_element_id,
     });
 

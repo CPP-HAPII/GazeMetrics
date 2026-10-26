@@ -10,12 +10,12 @@ BASE_DIR = Path(__file__).parent
 DATA_PATH = BASE_DIR / "raw_WG_data"
 
 async def get_data_by_session(session_id: int, db: AsyncSession) -> list[dict]:
-    """Read raw samples via gazepoint_data_flat, which unnests the packed
-    gazepoint_data rows back into one row per sample."""
+    """Read raw samples via gaze_readable, which unpacks the gaze table's
+    packed rows into one row per sample."""
     result = await db.execute(
         text(
-            "SELECT x, y, timestamp FROM gazepoint_data_flat "
-            "WHERE session_id = :session_id ORDER BY timestamp"
+            "SELECT x, y, seconds_from_start::float8 AS timestamp FROM gaze_readable "
+            "WHERE session_id = :session_id ORDER BY seconds_from_start"
         ),
         {"session_id": session_id},
     )

@@ -13,7 +13,6 @@ import sys
 import shutil
 import asyncio
 import subprocess
-import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -32,10 +31,7 @@ from sqlalchemy import select, func, text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
-from db.models import (  # noqa: E402
-    GazepointSession, GazepointData, Fixation, ValidationPoint, PageVisit, AnswerEvent,
-    GAZE_BATCH_SIZE,
-)
+from db.models import Session, Page, Calibration, Gaze, Fixation, GAZE_BATCH_SIZE  # noqa: E402
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -45,7 +41,7 @@ MIN_POINTS_FOR_FIXATIONS = 40
 POINT_FLUSH_INTERVAL_SECONDS = 5
 _point_buffer: list[dict] = []
 _buffer_lock = asyncio.Lock()
-_session_user_cache: dict[int, uuid.UUID] = {}
+_participant_cache: dict[int, str | None] = {}   # session id -> participant name
 
 # Folders the pipeline writes into; cleared before each processing run so only
 # the requested session is processed.
@@ -93,9 +89,8 @@ async def _flush_loop() -> None:
 
 def _pack_points(points: list[dict]) -> list[dict]:
     """Group buffered samples into chunks of GAZE_BATCH_SIZE per session,
-    preserving arrival order, and reshape each chunk into the packed
-    (x_values, y_values, timestamps, html_element_ids, sample_count) columns
-    that one GazepointData row stores."""
+    preserving arrival order, and reshape each chunk into the packed array
+    columns that one row of the gaze table stores."""
     by_session: dict[int, list[dict]] = {}
     for p in points:
         by_session.setdefault(p["session_id"], []).append(p)
@@ -107,12 +102,13 @@ def _pack_points(points: list[dict]) -> list[dict]:
             batches.append(
                 dict(
                     session_id=session_id,
-                    user_id=chunk[0]["user_id"],
+                    participant_name=chunk[0]["participant_name"],
+                    sample_count=len(chunk),
+                    seconds_from_start=[s["seconds"] for s in chunk],
                     x_values=[s["x"] for s in chunk],
                     y_values=[s["y"] for s in chunk],
-                    timestamps=[s["timestamp"] for s in chunk],
-                    html_element_ids=[s["html_element_id"] for s in chunk],
-                    sample_count=len(chunk),
+                    page_ids=[s["page_id"] for s in chunk],
+                    element_ids=[s["element_id"] for s in chunk],
                 )
             )
     return batches
@@ -128,21 +124,21 @@ async def _flush_buffer() -> None:
         batch, _point_buffer = _point_buffer, []
 
     now = datetime.now(timezone.utc)
-    rows = [GazepointData(**item, created_at=now) for item in _pack_points(batch)]
+    rows = [Gaze(**item, created_at=now) for item in _pack_points(batch)]
     async with AsyncSessionLocal() as db:
         db.add_all(rows)
         await db.commit()
 
 
-async def _get_session_user_id(db: AsyncSession, session_id: int) -> uuid.UUID:
-    """Resolve (and cache) the per-session participant UUID for a session_id."""
-    if session_id in _session_user_cache:
-        return _session_user_cache[session_id]
-    session = await db.get(GazepointSession, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-    _session_user_cache[session_id] = session.user_id
-    return session.user_id
+async def _participant_name(db: AsyncSession, session_id: int) -> str | None:
+    """The participant name of a session (cached), stored on every row so each
+    table reads on its own. 404 if the session doesn't exist."""
+    if session_id not in _participant_cache:
+        session = await db.get(Session, session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        _participant_cache[session_id] = session.participant_name
+    return _participant_cache[session_id]
 
 
 @app.get("/api/health")
@@ -160,13 +156,12 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     """Create a gaze session and return its id."""
     body = await request.json()
     participant_name = str(body.get("participant_name") or "").strip()[:255] or None
-    session = GazepointSession(
-        user_id=uuid.uuid4(),
+    session = Session(
         participant_name=participant_name,
-        page_name=body.get("page_name", "NA"),
+        test_name=body.get("page_name") or None,
+        started_at=datetime.now(timezone.utc),
         browser_width=int(body.get("browser_width") or 0),
         browser_height=int(body.get("browser_height") or 0),
-        created_at=datetime.now(timezone.utc),
     )
     db.add(session)
     await db.flush()
@@ -174,13 +169,14 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
     # Commit before returning: get_db's post-yield commit runs only after the
     # response is sent, which races with the client's next request.
     await db.commit()
-    _session_user_cache[session.id] = session.user_id
-    return {"status": "success", "session_id": session.id, "user_id": str(session.user_id)}
+    _participant_cache[session.id] = session.participant_name
+    return {"status": "success", "session_id": session.id}
 
 
 @app.post("/api/validation")
 async def store_validation(request: Request, db: AsyncSession = Depends(get_db)):
-    """Store the per-point accuracy of one post-calibration validation run.
+    """Store one accuracy check: its 18 points and their average error, and
+    update the session's calibration_error_px to this latest check.
 
     Body: {session_id, attempt, points: [{point_index, target_x, target_y,
     mean_error_px, sample_count}]}. mean_error_px is null for a point where
@@ -188,27 +184,34 @@ async def store_validation(request: Request, db: AsyncSession = Depends(get_db))
     """
     body = await request.json()
     session_id = int(body["session_id"])
-    if not await db.get(GazepointSession, session_id):
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    participant = await _participant_name(db, session_id)
 
-    now = datetime.now(timezone.utc)
-    rows = [
-        ValidationPoint(
-            session_id=session_id,
-            attempt=int(body.get("attempt") or 1),
-            point_index=int(p["point_index"]),
-            target_x=float(p["target_x"]),
-            target_y=float(p["target_y"]),
-            mean_error_px=(
-                float(p["mean_error_px"]) if p.get("mean_error_px") is not None else None
-            ),
-            sample_count=int(p.get("sample_count") or 0),
-            created_at=now,
-        )
+    points = [
+        {
+            "point": int(p["point_index"]),
+            "x": float(p["target_x"]),
+            "y": float(p["target_y"]),
+            "error_px": (round(float(p["mean_error_px"]), 1)
+                         if p.get("mean_error_px") is not None else None),
+            "samples": int(p.get("sample_count") or 0),
+        }
         for p in body.get("points", [])
     ]
-    db.add_all(rows)
-    return {"status": "success", "stored": len(rows)}
+    errors = [p["error_px"] for p in points if p["error_px"] is not None]
+    mean_error = round(sum(errors) / len(errors), 1) if errors else None
+
+    db.add(Calibration(
+        session_id=session_id,
+        participant_name=participant,
+        attempt=int(body.get("attempt") or 1),
+        checked_at=datetime.now(timezone.utc),
+        mean_error_px=mean_error,
+        points_with_data=len(errors),
+        points=points,
+    ))
+    session = await db.get(Session, session_id)
+    session.calibration_error_px = mean_error
+    return {"status": "success", "stored": len(points)}
 
 
 def _parse_client_time(value: str | None) -> datetime | None:
@@ -220,59 +223,42 @@ def _parse_client_time(value: str | None) -> datetime | None:
 
 @app.post("/api/page-visits")
 async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db)):
-    """Store one finished exam-page visit.
+    """Store one finished test page, with the answer given on it.
 
-    Body: {session_id, visit_index, page_id, question_id, page_url,
-    entered_at, left_at, entered_elapsed, duration_seconds}. Sent by the
-    capture page when the participant leaves a page.
+    Body: {session_id, page_order, page_id, page_type, started_at,
+    seconds_from_start, seconds_on_page, answers: [{answer, answer_text,
+    seconds}]}. answers lists every answer clicked on the page, in order; the
+    last one is the participant's answer. Sent by the capture page when the
+    participant leaves a page.
     """
     body = await request.json()
     session_id = int(body["session_id"])
-    if not await db.get(GazepointSession, session_id):
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    participant = await _participant_name(db, session_id)
 
-    duration = body.get("duration_seconds")
-    db.add(
-        PageVisit(
-            session_id=session_id,
-            visit_index=int(body.get("visit_index") or 0),
-            page_id=body.get("page_id") or None,
-            question_id=body.get("question_id") or None,
-            page_url=body.get("page_url") or None,
-            entered_at=_parse_client_time(body.get("entered_at")),
-            left_at=_parse_client_time(body.get("left_at")),
-            entered_elapsed=float(body.get("entered_elapsed") or 0),
-            duration_seconds=float(duration) if duration is not None else None,
-            created_at=datetime.now(timezone.utc),
-        )
-    )
-    return {"status": "success"}
+    def num(key):
+        value = body.get(key)
+        return round(float(value), 2) if value is not None else None
 
-
-@app.post("/api/answers")
-async def store_answer(request: Request, db: AsyncSession = Depends(get_db)):
-    """Store one answer choice the participant clicked.
-
-    Body: {session_id, question_id, choice, choice_text, selected_at,
-    elapsed_seconds}. Sent each time an answer is selected, so changes of
-    mind are kept too.
-    """
-    body = await request.json()
-    session_id = int(body["session_id"])
-    if not await db.get(GazepointSession, session_id):
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-
-    db.add(
-        AnswerEvent(
-            session_id=session_id,
-            question_id=str(body["question_id"])[:255],
-            choice=str(body["choice"])[:8],
-            choice_text=(str(body["choice_text"])[:1000] if body.get("choice_text") is not None else None),
-            selected_at=_parse_client_time(body.get("selected_at")) or datetime.now(timezone.utc),
-            elapsed_seconds=float(body.get("elapsed_seconds") or 0),
-            created_at=datetime.now(timezone.utc),
-        )
-    )
+    clicked = body.get("answers") or []
+    last = clicked[-1] if clicked else None
+    db.add(Page(
+        session_id=session_id,
+        participant_name=participant,
+        page_order=int(body.get("page_order") or 0),
+        page_id=body.get("page_id") or None,
+        page_type=body.get("page_type") or None,
+        started_at=_parse_client_time(body.get("started_at")),
+        seconds_from_start=num("seconds_from_start"),
+        seconds_on_page=num("seconds_on_page"),
+        answer=str(last["answer"])[:8] if last else None,
+        answer_text=(str(last["answer_text"])[:1000]
+                     if last and last.get("answer_text") is not None else None),
+        answered_at_seconds=round(float(last["seconds"]), 2) if last else None,
+        answer_history=[
+            {"answer": str(a["answer"])[:8], "seconds": round(float(a["seconds"]), 2)}
+            for a in clicked
+        ] or None,
+    ))
     return {"status": "success"}
 
 
@@ -280,7 +266,8 @@ async def store_answer(request: Request, db: AsyncSession = Depends(get_db)):
 async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
     """Queue gaze points for the next batch write.
 
-    Body: {points: [{session_id,x,y,timestamp,...}]}. Points are held in
+    Body: {points: [{session_id, x, y, timestamp, page_id, html_element_id}]},
+    timestamp in seconds since recording started. Points are held in
     memory and flushed to Postgres as a single bulk insert every
     POINT_FLUSH_INTERVAL_SECONDS by `_flush_loop`, rather than being written
     on every request.
@@ -293,15 +280,15 @@ async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
     queued = []
     for p in points:
         session_id = int(p["session_id"])
-        user_id = await _get_session_user_id(db, session_id)
         queued.append(
             dict(
                 session_id=session_id,
-                user_id=user_id,
+                participant_name=await _participant_name(db, session_id),
                 x=float(p["x"]),
                 y=float(p["y"]),
-                timestamp=float(p["timestamp"]),
-                html_element_id=(p.get("html_element_id") or None),
+                seconds=float(p["timestamp"]),
+                page_id=(p.get("page_id") or None),
+                element_id=(p.get("html_element_id") or None),
             )
         )
 
@@ -320,8 +307,8 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
     """List sessions with gaze-point and fixation counts, newest first."""
     point_counts = dict(
         (await db.execute(
-            select(GazepointData.session_id, func.sum(GazepointData.sample_count))
-            .group_by(GazepointData.session_id)
+            select(Gaze.session_id, func.sum(Gaze.sample_count))
+            .group_by(Gaze.session_id)
         )).all()
     )
     fixation_counts = dict(
@@ -331,7 +318,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
         )).all()
     )
     sessions = (await db.execute(
-        select(GazepointSession).order_by(GazepointSession.id.desc())
+        select(Session).order_by(Session.id.desc())
     )).scalars().all()
 
     return {
@@ -340,10 +327,10 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
             {
                 "id": s.id,
                 "participant_name": s.participant_name,
-                "page_name": s.page_name,
+                "test_name": s.test_name,
                 "browser_width": s.browser_width,
                 "browser_height": s.browser_height,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "created_at": s.started_at.isoformat() if s.started_at else None,
                 "point_count": point_counts.get(s.id, 0),
                 "fixation_count": fixation_counts.get(s.id, 0),
             }
@@ -355,7 +342,7 @@ async def list_sessions(db: AsyncSession = Depends(get_db)):
 @app.get("/api/session/{session_id}")
 async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
     """Return metadata for a single session."""
-    session = await db.get(GazepointSession, session_id)
+    session = await db.get(Session, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return {
@@ -363,10 +350,11 @@ async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
         "data": {
             "id": session.id,
             "participant_name": session.participant_name,
-            "page_name": session.page_name,
+            "test_name": session.test_name,
             "browser_width": session.browser_width,
             "browser_height": session.browser_height,
-            "created_at": session.created_at.isoformat() if session.created_at else None,
+            "created_at": session.started_at.isoformat() if session.started_at else None,
+            "calibration_error_px": session.calibration_error_px,
         },
     }
 
@@ -375,14 +363,13 @@ async def get_session(session_id: int, db: AsyncSession = Depends(get_db)):
 async def get_points(session_id: int, db: AsyncSession = Depends(get_db)):
     """Return raw gaze points (pixels) for a session, ordered by time.
 
-    Reads gazepoint_data_flat, which unnests the packed gazepoint_data rows
-    back into one row per sample, so callers see the same shape as before
-    row-batching was introduced.
+    Reads gaze_readable, which unpacks the gaze table's packed rows into one
+    row per sample.
     """
     rows = (await db.execute(
         text(
-            "SELECT x, y, timestamp FROM gazepoint_data_flat "
-            "WHERE session_id = :session_id ORDER BY timestamp"
+            "SELECT x, y, seconds_from_start::float8 AS timestamp FROM gaze_readable "
+            "WHERE session_id = :session_id ORDER BY seconds_from_start"
         ),
         {"session_id": session_id},
     )).mappings().all()
@@ -467,14 +454,14 @@ async def process_session(request: Request):
     # Fetch dims + point count in a short-lived session, then release the
     # connection before the pipeline subprocesses touch the same SQLite file.
     async with AsyncSessionLocal() as db:
-        session = await db.get(GazepointSession, int(session_id))
+        session = await db.get(Session, int(session_id))
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         screen_w = str(session.browser_width or 1920)
         screen_h = str(session.browser_height or 1080)
         point_count = (await db.execute(
-            select(func.coalesce(func.sum(GazepointData.sample_count), 0))
-            .where(GazepointData.session_id == int(session_id))
+            select(func.coalesce(func.sum(Gaze.sample_count), 0))
+            .where(Gaze.session_id == int(session_id))
         )).scalar_one()
         already = (await db.execute(
             select(func.count(Fixation.id))

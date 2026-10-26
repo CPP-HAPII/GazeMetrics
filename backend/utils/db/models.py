@@ -1,143 +1,119 @@
-import uuid
+"""Database tables.
+
+Four tables, one row per thing, with the participant's name on every row so
+each table reads on its own in Supabase:
+
+  sessions      one participant session: who, when, screen, calibration result
+  pages         one test page shown: timing, plus the answer chosen there
+  calibration   one accuracy check after calibration, with its 18 points
+  gaze          gaze samples, packed GAZE_BATCH_SIZE to a row (to save space);
+                read them one per row through the gaze_readable view
+
+plus `fixations`, filled only when the viewer's "Process fixations" is used.
+
+Times called seconds_from_start / *_seconds count from the moment the
+participant clicked "Start recording", so gaze, pages and answers line up.
+"""
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, Integer, Float, ForeignKey, String, Uuid
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import BigInteger, DateTime, Integer, Float, ForeignKey, String
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
 
-# Number of raw gaze samples packed into a single gazepoint_data row.
+# Number of gaze samples packed into one row of the gaze table.
 GAZE_BATCH_SIZE = 50
 
-class GazepointSession(Base):
-    __tablename__ = "gazepoint_sessions"
+
+class Session(Base):
+    __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, nullable=False, default=uuid.uuid4, index=True
-    )
-    # Free-text name/nickname/id the participant types in before starting.
+    # The ID the participant typed on the welcome page.
     participant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    page_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    test_name: Mapped[str | None] = mapped_column(String(255), nullable=True)   # e.g. exam1
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     browser_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     browser_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Average error of the last accuracy check (the calibration the recording used).
+    calibration_error_px: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # Relationship back to fixations
-    fixations: Mapped[list["Fixation"]] = relationship(
-        "Fixation", back_populates="session", lazy="selectin"
-    )
-    data: Mapped[list["GazepointData"]] = relationship(
-        "GazepointData", back_populates="session", uselist=False, lazy="selectin"
-    )
 
-class GazepointData(Base):
-    """One row holds up to GAZE_BATCH_SIZE raw gaze samples, packed as parallel
-    arrays (x_values[i], y_values[i], timestamps[i], html_element_ids[i] are
-    all sample i), instead of one row per sample. This cuts row count/overhead
-    while keeping every sample's data. Read it back sample-by-sample via the
-    gazepoint_data_flat view (see db/views.py) rather than unpacking by hand.
-    """
-    __tablename__ = "gazepoint_data"
+class Page(Base):
+    """One test page shown to the participant, with the answer given on it.
+    Each question has its own page, so seconds_on_page is the time spent on
+    that question (or reading time, for a reading passage)."""
+    __tablename__ = "pages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
+        Integer, ForeignKey("sessions.id"), nullable=False, index=True
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    participant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    page_order: Mapped[int] = mapped_column(Integer, nullable=False)        # 1 = first page shown
+    page_id: Mapped[str | None] = mapped_column(String(255), nullable=True)  # q12, passage-3, passage-3-q1, ...
+    # directions, audio (listening question), text (written question) or reading (passage).
+    page_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    seconds_from_start: Mapped[float | None] = mapped_column(Float, nullable=True)
+    seconds_on_page: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The answer the participant ended with on this page (empty if none)...
+    answer: Mapped[str | None] = mapped_column(String(8), nullable=True)     # a, b, c or d
+    answer_text: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    answered_at_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # ...and every answer they clicked, in order, e.g.
+    # [{"answer": "b", "seconds": 30.1}, {"answer": "c", "seconds": 31.4}]
+    answer_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
+
+class Calibration(Base):
+    """One accuracy check after calibration. Recalibrating adds a new attempt;
+    the highest attempt is the calibration the recording was made with."""
+    __tablename__ = "calibration"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    participant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Average over the points where the tracker produced a reading.
+    mean_error_px: Mapped[float | None] = mapped_column(Float, nullable=True)
+    points_with_data: Mapped[int] = mapped_column(Integer, nullable=False)
+    # One entry per point: {"point", "x", "y", "error_px", "samples"}.
+    points: Mapped[list] = mapped_column(JSONB, nullable=False)
+
+
+class Gaze(Base):
+    """Up to GAZE_BATCH_SIZE gaze samples, packed as parallel arrays
+    (x_values[i], y_values[i], seconds_from_start[i], page_ids[i] and
+    element_ids[i] are all sample i). Read through the gaze_readable view."""
+    __tablename__ = "gaze"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sessions.id"), nullable=False, index=True
+    )
+    participant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    seconds_from_start: Mapped[list[float]] = mapped_column(ARRAY(Float), nullable=False)
     x_values: Mapped[list[float]] = mapped_column(ARRAY(Float), nullable=False)
     y_values: Mapped[list[float]] = mapped_column(ARRAY(Float), nullable=False)
-    timestamps: Mapped[list[float]] = mapped_column(ARRAY(Float), nullable=False)
-    html_element_ids: Mapped[list[str | None]] = mapped_column(ARRAY(String(255)), nullable=False)
-    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    session: Mapped["GazepointSession"] = relationship(
-        "GazepointSession", back_populates="data", lazy="selectin"
-    )
-
-
-class ValidationPoint(Base):
-    """Accuracy of one evaluation point from the post-calibration check: the
-    mean distance (px) between the point and the gaze predictions sampled
-    while the participant looked at it. A session has one row per point per
-    attempt; recalibrating adds a new attempt, and the highest attempt is the
-    calibration the recording was made with.
-    """
-    __tablename__ = "validation_points"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
-    )
-    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
-    point_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    target_x: Mapped[float] = mapped_column(Float, nullable=False)
-    target_y: Mapped[float] = mapped_column(Float, nullable=False)
-    # NULL when no gaze prediction was available while the point was shown.
-    mean_error_px: Mapped[float | None] = mapped_column(Float, nullable=True)
-    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
-class PageVisit(Base):
-    """One exam page shown to the participant: which page/question it was,
-    when it appeared, and how long it stayed on screen. Each exam page holds
-    one question, so duration_seconds is the time spent on that question.
-    """
-    __tablename__ = "page_visits"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
-    )
-    visit_index: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 = first page shown
-    page_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    question_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    page_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Wall-clock times as reported by the participant's browser.
-    entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Seconds since recording started: the same clock as gaze timestamps.
-    entered_elapsed: Mapped[float] = mapped_column(Float, nullable=False)
-    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
-class AnswerEvent(Base):
-    """One answer choice clicked by the participant. Every click is kept, so
-    changed answers stay visible; the participant's final answer to a
-    question is its latest row (see the final_answers view).
-    """
-    __tablename__ = "answer_events"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
-    )
-    question_id: Mapped[str] = mapped_column(String(255), nullable=False)   # e.g. q12, passage-3-q1
-    choice: Mapped[str] = mapped_column(String(8), nullable=False)          # a, b, c or d
-    choice_text: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    # Wall-clock time from the participant's browser.
-    selected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    # Seconds since recording started: the same clock as gaze timestamps.
-    elapsed_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    page_ids: Mapped[list[str | None]] = mapped_column(ARRAY(String(255)), nullable=False)
+    element_ids: Mapped[list[str | None]] = mapped_column(ARRAY(String(255)), nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Fixation(Base):
-    __tablename__ = "fixation_points"
+    """Fixations found by the ST-DBSCAN pipeline (viewer: Process fixations)."""
+    __tablename__ = "fixations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
+        Integer, ForeignKey("sessions.id"), nullable=False, index=True
     )
     fixation_id: Mapped[int] = mapped_column(Integer, nullable=False)
     x: Mapped[float] = mapped_column(Float, nullable=False)
     y: Mapped[float] = mapped_column(Float, nullable=False)
     duration: Mapped[int] = mapped_column(BigInteger, nullable=False)
     timestamp: Mapped[int] = mapped_column(BigInteger, nullable=False)
-
-    # Relationship to parent session
-    session: Mapped["GazepointSession"] = relationship(
-        "GazepointSession", back_populates="fixations", lazy="selectin"
-    )

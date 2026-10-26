@@ -37,17 +37,17 @@ async def _load_session(session_id):
     async with engine.connect() as conn:
         session = (await conn.execute(
             text("SELECT id, participant_name, browser_width, browser_height "
-                 "FROM gazepoint_sessions WHERE id = :s"),
+                 "FROM sessions WHERE id = :s"),
             {"s": session_id},
         )).mappings().first()
         samples = (await conn.execute(
-            text("SELECT x, y, timestamp, html_element_id FROM gazepoint_data_flat "
-                 "WHERE session_id = :s ORDER BY timestamp"),
+            text("SELECT x, y, seconds_from_start::float8 AS timestamp, element_id FROM gaze_readable "
+                 "WHERE session_id = :s ORDER BY seconds_from_start"),
             {"s": session_id},
         )).mappings().all()
         visits = (await conn.execute(
-            text("SELECT visit_index, page_id, entered_at, left_at FROM page_visits "
-                 "WHERE session_id = :s ORDER BY visit_index"),
+            text("SELECT page_order, page_id, started_at FROM pages "
+                 "WHERE session_id = :s ORDER BY page_order"),
             {"s": session_id},
         )).mappings().all()
     await engine.dispose()
@@ -66,10 +66,10 @@ def load_webgazer(session_id):
             f"Session {session_id} has no page visits, so its recording start time is unknown."
         )
     visits = pd.DataFrame(visits)
-    visits["start"] = pd.to_datetime(visits["entered_at"], utc=True).map(lambda t: t.timestamp())
+    visits["start"] = pd.to_datetime(visits["started_at"], utc=True).map(lambda t: t.timestamp())
     # Gaze timestamps count from "Start recording", which is also when the
     # first page visit began, on the same browser clock.
-    recording_start = visits.loc[visits["visit_index"].idxmin(), "start"]
+    recording_start = visits.loc[visits["page_order"].idxmin(), "start"]
 
     wg = pd.DataFrame(samples)
     wg["time"] = recording_start + wg["timestamp"].astype(float)

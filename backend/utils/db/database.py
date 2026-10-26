@@ -10,7 +10,6 @@ from a local `.env` file via python-dotenv), never hardcoded. See
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
@@ -56,17 +55,14 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db() -> None:
-    """Create all tables if they do not yet exist, and (re)create the
-    readable views (see views.py), called at app startup."""
+    """Create any missing tables, copy data over from the old tables the first
+    time (see migrate_old_tables.py), and (re)create the gaze_readable view.
+    Called at app startup."""
     from . import models  # noqa: F401 - ensure models register with Base.metadata
     from .views import create_views
+    from .migrate_old_tables import migrate_old_tables
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # create_all never alters an existing table, so columns added after a
-        # database was first created are applied here.
-        await conn.execute(text(
-            "ALTER TABLE gazepoint_sessions "
-            "ADD COLUMN IF NOT EXISTS participant_name VARCHAR(255)"
-        ))
+        await migrate_old_tables(conn)
         await create_views(conn)
