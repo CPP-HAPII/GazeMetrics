@@ -103,6 +103,27 @@ class PageVisit(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class AnswerEvent(Base):
+    """One answer choice clicked by the participant. Every click is kept, so
+    changed answers stay visible; the participant's final answer to a
+    question is its latest row (see the final_answers view).
+    """
+    __tablename__ = "answer_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("gazepoint_sessions.id"), nullable=False, index=True
+    )
+    question_id: Mapped[str] = mapped_column(String(255), nullable=False)   # e.g. q12, passage-3-q1
+    choice: Mapped[str] = mapped_column(String(8), nullable=False)          # a, b, c or d
+    choice_text: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # Wall-clock time from the participant's browser.
+    selected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Seconds since recording started: the same clock as gaze timestamps.
+    elapsed_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Fixation(Base):
     __tablename__ = "fixation_points"
 

@@ -12,7 +12,7 @@
   const DATAPOINTS_PER_SECOND = 10;
   const MAX_CACHE_SIZE = 20;
   const PARTICIPANT_KEY = "examParticipant:v1";
-  const PAGE_NAME = "sample-page";
+  const PAGE_NAME = "exam1";   // which test the session was recorded on
   const CAMERA_START_TIMEOUT_MS = 30000;
 
   // Backend may be hosted on a different origin than this static frontend
@@ -512,6 +512,35 @@
 
   // Called by exam.js each time it shows a new page.
   window.onExamPageShown = onPageChanged;
+
+  /* ---------------- answers ---------------- */
+
+  // Called by exam.js whenever the participant selects an answer choice.
+  // Every selection is saved with its time, so changed answers are kept too;
+  // the final answer is the last one (final_answers view in the database).
+  window.onAnswerSelected = async function (answer) {
+    if (!calibrationFinish || examFinished) return;
+    const now = Date.now();
+    const event = {
+      question_id: answer.question_id,
+      choice: answer.choice,
+      choice_text: answer.choice_text,
+      selected_at: new Date(now).toISOString(),
+      elapsed_seconds: (now - timeBegin) / 1000,
+    };
+    await sessionReady;
+    if (sessionId == null) return;
+    try {
+      await fetch(API_BASE + "/api/answers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, ...event }),
+        keepalive: true,   // the participant may click Next right away
+      });
+    } catch (e) {
+      console.error("Failed to store answer", e);
+    }
+  };
 
   // Pages that are separate HTML files change by loading a new document.
   // exam.js pages report their changes above instead, so skip those here.

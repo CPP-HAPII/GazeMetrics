@@ -37,6 +37,14 @@
       `;
       // Words of answer a are named q95-a-l1-w1, q95-a-l1-w2, ...
       wrapWords(opt.querySelector("label"), `${pageId}-${letter}`);
+      // Report every answer chosen (including changes of mind) to the capture
+      // page, which saves it with the time. Not there when the test runs on
+      // its own (Skip calibration).
+      opt.querySelector("input").addEventListener("change", () => {
+        try {
+          window.parent.onAnswerSelected?.({ question_id: pageId, choice: letter, choice_text: text });
+        } catch { /* ignore */ }
+      });
       wrap.appendChild(opt);
     });
     return wrap;

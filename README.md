@@ -100,16 +100,29 @@ The part before `-l` names the block a word belongs to (passage, question, answe
 
 ## What is stored
 
+**Start with the views.** They show the data ready to read, one row per thing, and are kept up to date automatically:
+
+| View | One row per | What it shows |
+|---|---|---|
+| `session_summary` | session | participant, start time (Pacific), browser size, gaze samples, pages seen, questions answered, minutes recorded, calibration error |
+| `final_answers` | answered question | the answer the participant ended with (letter and text), when, how many times they clicked an answer, and seconds on the question |
+| `gaze_samples` | gaze sample | participant, seconds since start, **the page on screen**, x, y, and the element split into `block`, `line` and `word` |
+| `calibration_summary` | accuracy check | average error over its 18 points, per attempt |
+| `gazepoint_data_flat` | gaze sample | the raw sample columns, unpacked |
+
+The tables underneath hold the raw data in the form that is efficient to save:
+
 | Table | One row per | Main columns |
 |---|---|---|
-| `gazepoint_sessions` | capture session | `participant_name`, `user_id`, browser size, `created_at` |
+| `gazepoint_sessions` | capture session | `participant_name`, `user_id`, `page_name` (which test), browser size, `created_at` |
 | `gazepoint_data` | 50 gaze samples, packed as arrays | `x_values`, `y_values`, `timestamps`, `html_element_ids` |
+| `answer_events` | answer choice clicked | `question_id`, `choice` (a–d), `choice_text`, `selected_at`, `elapsed_seconds` |
+| `page_visits` | test page shown | `page_id`, `question_id`, `entered_at`, `left_at`, `entered_elapsed`, `duration_seconds` |
 | `validation_points` | accuracy-check point, per attempt | `attempt`, `point_index`, `target_x`, `target_y`, `mean_error_px`, `sample_count` |
-| `page_visits` | exam page shown | `page_id`, `question_id`, `entered_at`, `left_at`, `entered_elapsed`, `duration_seconds` |
 | `fixation_points` | fixation, after processing | `x`, `y`, `duration`, `timestamp` |
 
-- Read gaze samples through the `gazepoint_data_flat` view, which gives one row per sample with the element it landed on (`html_element_id`, see [Gaze labels](#gaze-labels)) and the session's `participant_name`.
-- Gaze `timestamp` and `page_visits.entered_elapsed` are both seconds since the participant clicked "Start recording", so they can be lined up.
+- `answer_events` keeps every click on an answer, so a participant who changes their mind shows up as several rows; their final answer is the latest one (`final_answers`).
+- Gaze `timestamp`, `answer_events.elapsed_seconds` and `page_visits.entered_elapsed` are all seconds since the participant clicked "Start recording", so gaze, answers and pages can be lined up.
 - `page_visits` has one row per page shown, using the test's page ids (`q1` … `q100`, `passage-1`, `passage-1-q1`, …). `duration_seconds` is the time on that page: time per question on question pages, reading time on passage pages. `question_id` is empty for directions and reading-passage pages.
 - Clock times are stored in UTC.
 - No video or images are stored; the camera feed is processed in the browser.
@@ -121,23 +134,23 @@ Tables and new columns are created automatically when the backend starts.
 In Supabase, use **Table Editor** to browse tables or **SQL Editor** to run queries, for example:
 
 ```sql
--- Recent sessions, in Pacific time
-SELECT id, participant_name,
-       created_at AT TIME ZONE 'America/Los_Angeles' AS created_local
-FROM gazepoint_sessions ORDER BY id DESC LIMIT 10;
+-- Recent sessions
+SELECT * FROM session_summary ORDER BY session_id DESC LIMIT 10;
 
--- Gaze samples for one participant
-SELECT session_id, x, y, timestamp, html_element_id
-FROM gazepoint_data_flat WHERE participant_name = 'P001' ORDER BY session_id, timestamp;
+-- A participant's answers, in the order they gave them
+SELECT * FROM final_answers WHERE participant_name = 'P001' ORDER BY session_id, answered_at_seconds;
+
+-- Every answer click, including changed answers
+SELECT question_id, choice, choice_text, elapsed_seconds
+FROM answer_events WHERE session_id = 1 ORDER BY id;
 
 -- Time spent on each page (questions, passages, directions)
 SELECT visit_index, page_id, question_id, duration_seconds
 FROM page_visits WHERE session_id = 1 ORDER BY visit_index;
 
--- Gaze samples per block of question 95 (passage, question, answers a-d)
-SELECT split_part(html_element_id, '-l', 1) AS block, count(*) AS samples
-FROM gazepoint_data_flat
-WHERE session_id = 1 AND html_element_id LIKE 'q95-%'
+-- Where the participant looked on question 95 (passage, question, answers a-d)
+SELECT block, count(*) AS samples
+FROM gaze_samples WHERE session_id = 1 AND page_id = 'q95'
 GROUP BY block ORDER BY samples DESC;
 
 -- Calibration accuracy at each of the 18 points
@@ -259,6 +272,7 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 | `POST /api/points` | Save gaze samples (sent about every 2 seconds); written to the database in batches every 5 seconds |
 | `POST /api/validation` | Save the 18 per-point results of an accuracy check |
 | `POST /api/page-visits` | Save one page visit: which page, when it appeared, how long it stayed |
+| `POST /api/answers` | Save one answer choice the participant clicked, with its time |
 | `GET /api/sessions` | List sessions with point and fixation counts |
 | `GET /api/session/{id}` | One session's details |
 | `GET /api/points?session_id=` | A session's raw gaze samples |
@@ -272,12 +286,13 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 - ✅ Word-level gaze labels on every page, page timing, time per question and reading time per passage
 - ✅ Live gaze dot hidden from participants during the test
 - ✅ PostgreSQL storage with batched writes, hosted on Supabase; frontend on Vercel, backend on Render
-- 🚧 Open questions: saving participants' answers, an "End test" button, and updating the viewer to show the test pages
+- ✅ Participants' answers saved with their time, including changed answers; readable summary views in the database
+- 🚧 Open questions: an "End test" button, and updating the viewer to show the test pages
 
 ## Notes and limitations
 
 - **Accuracy is coarse.** WebGazer is webcam-based; on an 18-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual words or answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 18 points.
-- **Answers are not saved.** The test records gaze and time per page, but not which option the participant chose.
+- **Answers are not scored.** The answer key isn't in the app yet, so `final_answers` shows what each participant chose but not whether it was correct.
 - **Small screens:** some question pages (e.g. question 91) cut off the Next button below about a 1920×960 browser window, and the pages can't scroll. Reading passages wrap to more than 10 lines on smaller windows.
 - **Consolas** is a Windows font; on a Mac without it, reading passages fall back to Courier New, which is wider, so lines wrap differently.
 - **Error is stored in pixels**, not degrees; screen size and viewing distance are not collected.

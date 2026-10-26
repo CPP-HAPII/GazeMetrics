@@ -57,9 +57,9 @@ async def get_db() -> AsyncSession:
 
 async def init_db() -> None:
     """Create all tables if they do not yet exist, and (re)create the
-    gazepoint_data_flat view, called at app startup."""
+    readable views (see views.py), called at app startup."""
     from . import models  # noqa: F401 - ensure models register with Base.metadata
-    from .views import create_flat_view
+    from .views import create_views
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -69,4 +69,4 @@ async def init_db() -> None:
             "ALTER TABLE gazepoint_sessions "
             "ADD COLUMN IF NOT EXISTS participant_name VARCHAR(255)"
         ))
-        await create_flat_view(conn)
+        await create_views(conn)

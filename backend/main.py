@@ -33,7 +33,8 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
 from db.models import (  # noqa: E402
-    GazepointSession, GazepointData, Fixation, ValidationPoint, PageVisit, GAZE_BATCH_SIZE,
+    GazepointSession, GazepointData, Fixation, ValidationPoint, PageVisit, AnswerEvent,
+    GAZE_BATCH_SIZE,
 )
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
@@ -242,6 +243,33 @@ async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db))
             left_at=_parse_client_time(body.get("left_at")),
             entered_elapsed=float(body.get("entered_elapsed") or 0),
             duration_seconds=float(duration) if duration is not None else None,
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    return {"status": "success"}
+
+
+@app.post("/api/answers")
+async def store_answer(request: Request, db: AsyncSession = Depends(get_db)):
+    """Store one answer choice the participant clicked.
+
+    Body: {session_id, question_id, choice, choice_text, selected_at,
+    elapsed_seconds}. Sent each time an answer is selected, so changes of
+    mind are kept too.
+    """
+    body = await request.json()
+    session_id = int(body["session_id"])
+    if not await db.get(GazepointSession, session_id):
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    db.add(
+        AnswerEvent(
+            session_id=session_id,
+            question_id=str(body["question_id"])[:255],
+            choice=str(body["choice"])[:8],
+            choice_text=(str(body["choice_text"])[:1000] if body.get("choice_text") is not None else None),
+            selected_at=_parse_client_time(body.get("selected_at")) or datetime.now(timezone.utc),
+            elapsed_seconds=float(body.get("elapsed_seconds") or 0),
             created_at=datetime.now(timezone.utc),
         )
     )
