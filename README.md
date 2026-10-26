@@ -188,6 +188,27 @@ uvicorn main:app --reload --port 8000
 
 Then open **http://localhost:8000/**. Use `localhost`, not `127.0.0.1`: WebGazer pops up an HTTPS warning on any other non-HTTPS address. Locally the backend serves the frontend itself, so nothing else needs to run, and your data goes to your local database, not to Supabase.
 
+## Comparing with a Gazepoint GP3 eye tracker
+
+To check WebGazer against a hardware eye tracker, run both on the lab computer at the same time: GazeMetrics locally in the browser, and the GP3 recorded with `backend/tools/gp3_logger.py`. Then `backend/tools/compare_gp3.py` lines the two up by the computer's clock and reports how far apart they are.
+
+1. **Set up the GP3** with Gazepoint's own software (Gazepoint Control), following Gazepoint's setup tutorial. Calibrate it in Gazepoint Control and leave Gazepoint Control open: it serves the gaze data on `127.0.0.1:4242`.
+2. **Start GazeMetrics locally** (see [Local development](#local-development)) and open http://localhost:8000/ in Chrome or Edge at 100% zoom. Press **F11** for full screen *before* continuing past the welcome page: WebGazer positions are relative to the browser window, GP3 positions to the screen, so the window must be the whole screen.
+3. **Start the GP3 recorder** in a second terminal, from `backend/` with the venv active:
+   ```bash
+   python tools/gp3_logger.py --out lab_test_1.csv
+   ```
+4. **Run the test** in the browser as a participant: ID, Calibrate & Capture, calibration, accuracy check, Start recording, then the questions. To test only the reading section, open `capture.html?id=<ID>&start=reading-directions`.
+5. **Stop the recorder** with Ctrl+C after submitting.
+6. **Compare**, using the session id (the newest row in `gazepoint_sessions`):
+   ```bash
+   python tools/compare_gp3.py --session 12 --gp3 lab_test_1.csv --screen 1920x1080 \
+       --screen-width-cm 53 --distance-cm 65 --out session12_pairs.csv
+   ```
+   `--screen` is the monitor's resolution; `--screen-width-cm` and `--distance-cm` (eyes to screen) are optional and add the error in degrees, as in Psarra et al.
+
+The comparison prints the average, median and 90th-percentile distance between the two trackers (in pixels, % of the screen diagonal, and degrees), how often they are within 100/200/300 px, any constant offset, and the distance per test page. `--out` saves every paired sample for further analysis. It treats the GP3 as the reference and uses its combined-eyes gaze point, only where the GP3 marked the sample valid.
+
 ## Deploying changes
 
 Push to `main` on GitHub.
@@ -221,6 +242,8 @@ backend/
   .env.example
   utils/db/               database connection, tables and the flat view
   utils/*.py              ST-DBSCAN fixation pipeline
+  tools/gp3_logger.py     records a Gazepoint GP3 to CSV (for the WebGazer comparison)
+  tools/compare_gp3.py    compares a session's WebGazer data with a GP3 recording
 ```
 
 To add or change test pages, edit the `PAGES` list in `exam1.html`; the page types are described at the top of `exam.js`. Give every page a unique `id`: page timing and gaze labels are built from it. The capture page learns about page changes from `exam.js` (`onExamPageShown`), so pages must be rendered by `exam.js` rather than loaded as separate HTML files.
