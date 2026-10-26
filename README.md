@@ -12,6 +12,20 @@ Opening this link goes straight to the welcome page, where the participant enter
 
 Share this link, not the Render address below and not a link that has extra characters after `gazemetrics-frontend` (those point at one old deployment and ask for a Vercel login).
 
+## Tech stack
+
+| Layer | Technology | Framework? |
+|---|---|---|
+| Frontend | HTML, CSS and plain ("vanilla") JavaScript | No framework (no React etc.): every page is a hand-written HTML file in `frontend/` |
+| Eye tracking | [WebGazer.js](https://webgazer.cs.brown.edu/) 3.4, loaded from a CDN | A library, used from `frontend/eyetracker.js` |
+| Heatmaps | [heatmap.js](https://www.patrick-wied.at/static/heatmapjs/) 2.0 | A library, used by the viewer |
+| Backend | Python 3.11 with **FastAPI**, run by **Uvicorn** | Yes: FastAPI is the web framework for all `/api` routes (`backend/main.py`) |
+| Database access | SQLAlchemy 2.0 (async) with asyncpg; Pydantic for data shapes | |
+| Database | PostgreSQL, hosted on Supabase | |
+| Fixation analysis | pandas, NumPy, SciPy, scikit-learn, kneed (ST-DBSCAN pipeline) | |
+
+**Why two languages:** the eye tracking has to run in the participant's browser, where the webcam is, and browsers only run JavaScript. Saving the data and analysing it happen on the server, where Python has the stronger data tools (and the fixation scripts this project builds on are Python). The browser sends only gaze coordinates and timings to the backend; no camera images or video ever leave the browser.
+
 ## How it is hosted
 
 ```
@@ -40,7 +54,7 @@ The Render free plan puts the backend to sleep after about 15 minutes without re
 4. **Face positioning** — a live camera preview with a square that turns green when both eyes are detected.
 5. **Calibration** — 18 black dots (6 × 3 grid, 12 px, light gray background), shown one at a time. The participant clicks each dot, then keeps looking at it while it shrinks for 1 second; the tracker records a training sample every 50 ms during that time (about 21 per dot).
 6. **Accuracy check** — a dot moves through the same 18 positions, 3 seconds each; the average error is shown as Good / Fair / Poor, with the option to recalibrate.
-7. **Test** — gaze is recorded about 10 times per second (see [The test](#the-test)). Every mouse click during the test also trains the tracker, since people look at what they click; this keeps it adjusting as the participant shifts over a long test.
+7. **Test** — gaze is recorded about 10 times per second (see [The test](#the-test)). The participant does not see where the tracker thinks they are looking (the live gaze dot is hidden, so it can't draw their eyes). Every mouse click during the test also trains the tracker, since people look at what they click; this keeps it adjusting as the participant shifts over a long test.
 
 The 18-point layout, target size and colours, and the one-dot-at-a-time calibration, follow Psarra, Krassanakis and Kesidis, *Systematic Performance Evaluation of WebGazer Webcam-Based Eye Tracking with Spatial and Angular Error Analysis*, J. Eye Mov. Res. 2026, 19, 99 (https://doi.org/10.3390/jemr19050099). The settings are constants at the top of `frontend/eyetracker.js`.
 
@@ -48,10 +62,12 @@ The 18-point layout, target size and colours, and the one-dot-at-a-time calibrat
 
 The start page has two extra links for the team:
 
-- **Skip calibration** — opens the test on its own, with no camera and nothing saved. Useful for checking how pages look.
-- **Skip to reading tasks (testing)** — the full tracking flow, but the test opens at the reading instructions instead of question 1.
+- **Skip calibration** — opens the test from question 1 on its own, with no camera and nothing saved. Useful for checking how pages look.
+- **Skip to reading tasks (testing)** — the same, but opening at the reading instructions, so the reading section can be checked without going through the first 100 questions.
 
-Any test page can also be opened directly with `?start=<page id>`, e.g. `exam1.html?start=passage-5`. Remove these links before real participants use the site.
+Any test page can be opened directly with `?start=<page id>`, e.g. `exam1.html?start=passage-5`. To test the reading section **with** eye tracking and saved data, add it to the capture page instead: `capture.html?id=<your ID>&start=reading-directions`.
+
+Remove the two links before real participants use the site.
 
 ## The test
 
@@ -209,19 +225,36 @@ backend/
 
 To add or change test pages, edit the `PAGES` list in `exam1.html`; the page types are described at the top of `exam.js`. Give every page a unique `id`: page timing and gaze labels are built from it. The capture page learns about page changes from `exam.js` (`onExamPageShown`), so pages must be rendered by `exam.js` rather than loaded as separate HTML files.
 
+## API
+
+All routes are in `backend/main.py`. The capture page calls the first five; the viewer uses the rest.
+
+| Method and path | Used for |
+|---|---|
+| `GET /api/health` | Check (and wake) the backend; touches no data |
+| `POST /api/session` | Create a session with the participant's ID and browser size; returns `session_id` |
+| `POST /api/points` | Save gaze samples (sent about every 2 seconds); written to the database in batches every 5 seconds |
+| `POST /api/validation` | Save the 18 per-point results of an accuracy check |
+| `POST /api/page-visits` | Save one page visit: which page, when it appeared, how long it stayed |
+| `GET /api/sessions` | List sessions with point and fixation counts |
+| `GET /api/session/{id}` | One session's details |
+| `GET /api/points?session_id=` | A session's raw gaze samples |
+| `POST /api/process` | Run the ST-DBSCAN fixation pipeline for a session |
+| `GET /api/fixations?session_id=` | A session's processed fixations |
+
 ## Status
 
 - ✅ Welcome page with participant ID; capture with face positioning, one-dot-at-a-time 18-point calibration and per-point accuracy check
 - ✅ The full test: 20 listening questions, 80 written questions, 12 reading passages with 24 questions
 - ✅ Word-level gaze labels on every page, page timing, time per question and reading time per passage
+- ✅ Live gaze dot hidden from participants during the test
 - ✅ PostgreSQL storage with batched writes, hosted on Supabase; frontend on Vercel, backend on Render
-- 🚧 Open questions: saving participants' answers, an "End test" button, and whether to hide the live gaze dot
+- 🚧 Open questions: saving participants' answers, an "End test" button, and updating the viewer to show the test pages
 
 ## Notes and limitations
 
 - **Accuracy is coarse.** WebGazer is webcam-based; on an 18-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual words or answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 18 points.
 - **Answers are not saved.** The test records gaze and time per page, but not which option the participant chose.
-- **The live gaze dot is visible to participants** during the test. It can draw their eyes, so consider hiding it for real sessions.
 - **Small screens:** some question pages (e.g. question 91) cut off the Next button below about a 1920×960 browser window, and the pages can't scroll. Reading passages wrap to more than 10 lines on smaller windows.
 - **Consolas** is a Windows font; on a Mac without it, reading passages fall back to Courier New, which is wider, so lines wrap differently.
 - **Error is stored in pixels**, not degrees; screen size and viewing distance are not collected.
