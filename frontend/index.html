@@ -52,7 +52,7 @@
     </div>
     <a class="skip" href="exam1.html">Skip calibration</a>
     <br />
-    <a class="skip" id="readingLink" href="capture.html?start=reading-directions">Skip to reading tasks (testing)</a>
+    <a class="skip" id="readingLink" href="exam1.html?start=reading-directions">Skip to reading tasks (testing)</a>
     <p class="steps">Requires a webcam. All camera processing happens locally in your browser.</p>
   </div>
 
@@ -69,11 +69,7 @@
         window.location.replace("landing.html");
         return;
       }
-      document.getElementById("captureLink").href = "capture.html?id=" + encodeURIComponent(id);
-      // Testing shortcut: same capture flow, but the exam opens at the reading tasks.
-      document.getElementById("readingLink").href =
-        "capture.html?id=" + encodeURIComponent(id) + "&start=reading-directions";
-    })();
+      document.getElementById("captureLink").href = "capture.html?id=" + encodeURIComponent(id);    })();
   </script>
 </body>
 </html>

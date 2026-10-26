@@ -417,7 +417,6 @@
     openVisit();
     hudDot.classList.add("recording");
     hudStatus.textContent = "Recording gaze";
-    gazeDot.classList.add("show");   // reveal the live gaze dot
   }
 
   // Move the red dot to the latest prediction. Runs at WebGazer's full
