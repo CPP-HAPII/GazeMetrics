@@ -271,10 +271,8 @@
             ? `<p id="${page.id}-passage">${numberLabel} ${page.passage}</p><p id="${page.id}-question" class="question">${page.question}</p>`
             : `<p id="${page.id}-question">${numberLabel} ${page.question}</p>`;
         card.innerHTML = `
-          <div id="${page.id}-instructions" class="prompt-label">Choose the best answer.</div>
           <div id="${page.id}-prompt" class="dialogue">${prompt}</div>
         `;
-        wrapWords(card.querySelector(".prompt-label"), `${page.id}-instructions`);
         card.querySelectorAll(".dialogue p").forEach((p) => wrapWords(p, p.id));
         card.appendChild(buildOptions(page.id, page.choices));
       }
