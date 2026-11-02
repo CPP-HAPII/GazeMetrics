@@ -1,7 +1,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: 100%; height: 100%; overflow: hidden; }
+/* The whole exam uses the reading passages' font (Ben's spec: Consolas).
+   Buttons don't inherit fonts by default, so they are included here. */
+body, button {
+  font-family: Consolas, "Courier New", monospace;
+}
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #1f2933;
   background: #f5f7fa;
   display: grid;
@@ -190,7 +194,8 @@ main {
 .overlay .modal p { font-size: 17px; margin-bottom: 20px; }
 
 /* Reading tasks. Passage pages follow Ben's spec: Consolas 20pt with 1.5 line
-   spacing; exam.js sets each passage's width so it wraps to about 10 lines.
+   spacing. Every passage has the same width (100 characters), so the number
+   of lines varies with its length; narrow windows shrink them all alike.
    The card uses the full space with less padding, so long passages still fit
    on laptop screens. */
 .card.reading-card {
@@ -204,6 +209,7 @@ main {
   font-family: Consolas, "Courier New", monospace;
   font-size: 20pt;
   line-height: 1.5;
+  width: 100ch;       /* one ch = one Consolas character */
   max-width: 100%;
   color: #1f2933;
 }
