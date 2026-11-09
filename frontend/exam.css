@@ -5,18 +5,9 @@ body {
   color: #1f2933;
   background: #f5f7fa;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr;
   height: 100vh;
 }
-header {
-  background: #1E4D2B;
-  color: #fff;
-  padding: 22px 40px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-header h1 { font-size: 26px; letter-spacing: .3px; }
 main {
   display: flex;
   align-items: center;
@@ -55,7 +46,6 @@ main {
   margin-bottom: 40px;
   padding: 26px 30px;
   background: #EEF5E6;
-  border-left: 5px solid #FFB500;
   border-radius: 6px;
 }
 .dialogue p { margin: 4px 0; }
@@ -65,12 +55,9 @@ main {
   margin-bottom: 40px;
   padding: 26px 30px;
   background: #EEF5E6;
-  border-left: 5px solid #FFB500;
   border-radius: 6px;
 }
 .audio-block audio { width: 100%; }
-.qnum { font-weight: 600; }
-.audio-block .qnum { font-size: 24px; color: #1E4D2B; margin-right: 14px; }
 .directions-title {
   font-size: 28px;
   color: #1E4D2B;
@@ -84,6 +71,14 @@ main {
 }
 .directions-title + .audio-block { margin-bottom: 12px; padding: 6px 12px; }
 .directions-title + .audio-block audio { display: block; height: 36px; }
+/* A part's title page ("Part 1", "Part 2"): the title centred in the card. */
+.cover-title {
+  margin: auto;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 56px;
+  color: #1E4D2B;
+}
+.cover-card .actions { margin-top: 0; }
 /* The long directions page must fit without scrolling: on short screens the
    card grows a little, its padding shrinks and the text scales with height. */
 .card:has(.directions-body.compact) {

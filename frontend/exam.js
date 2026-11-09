@@ -2,6 +2,8 @@
  * Shared exam renderer. Call startExam(pages) from the exam HTML file with
  * an array of page objects:
  *   { type: "directions", id, title, body, buttonLabel, audioSrc?, compact?, showPrevious? }
+ *   { type: "directions", id, title, cover: true, buttonLabel }
+ *     (a part's title page, e.g. "Part 1": just the title, centred)
  *     (showPrevious adds a "Previous" button back to the page before it;
  *      directions pages sharing a `group` show a "Page x of n" counter)
  *   { type: "audio",      id, instructions, audioSrc, choices, buttonLabel }
@@ -124,13 +126,13 @@
 
   // Wrap every word inside `el` in a span.word and mark `el` as a word group
   // whose words are named `${base}-l<line>-w<n>` (by labelWords). Text in
-  // buttons, audio players and the question number is left alone.
+  // buttons and audio players is left alone.
   function wrapWords(el, base) {
     if (!el) return;
     el.dataset.wordBase = base;
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
       acceptNode: (node) =>
-        node.parentElement.closest("button, audio, .qnum") || !node.textContent.trim()
+        node.parentElement.closest("button, audio") || !node.textContent.trim()
           ? NodeFilter.FILTER_REJECT
           : NodeFilter.FILTER_ACCEPT,
     });
@@ -229,7 +231,6 @@
       const page = pages[index];
       const isLast = index === pages.length - 1;
       const number = questionPages.indexOf(page) + 1;
-      const numberLabel = `<span class="qnum" id="${page.id}-number">${number}.</span>`;
       const card = getCard();
       // A clip still playing must not carry over onto the next page.
       if (questionAudio) {
@@ -239,6 +240,7 @@
       card.innerHTML = "";
       card.id = page.id;
       card.classList.toggle("reading-card", page.type === "reading");
+      card.classList.toggle("cover-card", !!page.cover);
 
       // Tell the capture page (eyetracker.js) which page is now on screen, for
       // per-question timing. Every page renders into this one document, so it
@@ -261,7 +263,11 @@
         return;
       }
 
-      if (page.type === "directions") {
+      if (page.cover) {
+        // A part's title page: just the title, centred, and the button.
+        card.innerHTML = `<div id="${page.id}-title" class="cover-title">${page.title}</div>`;
+        wrapWords(card.querySelector(".cover-title"), `${page.id}-title`);
+      } else if (page.type === "directions") {
         const audio = page.audioSrc ? `
           <div id="${page.id}-media" class="audio-block">
             <audio controls src="${page.audioSrc}"></audio>
@@ -281,7 +287,6 @@
         card.innerHTML = `
           <div id="${page.id}-instructions" class="prompt-label">${page.instructions}</div>
           <div id="${page.id}-media" class="audio-block">
-            ${numberLabel}
             <button type="button" id="${page.id}-play" class="btn play-once">Play audio</button>
           </div>
         `;
@@ -297,10 +302,10 @@
         // Each part of the prompt gets its own id (line1/line2, passage,
         // question) so the gaze data can tell them apart.
         const prompt = page.lines
-          ? page.lines.map((line, i) => `<p id="${page.id}-line${i + 1}" class="line${i + 1}">${i === 0 ? numberLabel + " " : ""}${line}</p>`).join("")
+          ? page.lines.map((line, i) => `<p id="${page.id}-line${i + 1}" class="line${i + 1}">${line}</p>`).join("")
           : page.passage
-            ? `<p id="${page.id}-passage">${numberLabel} ${page.passage}</p><p id="${page.id}-question" class="question">${page.question}</p>`
-            : `<p id="${page.id}-question">${numberLabel} ${page.question}</p>`;
+            ? `<p id="${page.id}-passage">${page.passage}</p><p id="${page.id}-question" class="question">${page.question}</p>`
+            : `<p id="${page.id}-question">${page.question}</p>`;
         card.innerHTML = `
           <div id="${page.id}-instructions" class="prompt-label">Choose the best answer.</div>
           <div id="${page.id}-prompt" class="dialogue">${prompt}</div>

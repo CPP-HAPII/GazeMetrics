@@ -63,9 +63,9 @@ The 18-point layout, target size and colours, and the one-dot-at-a-time calibrat
 The start page has two extra links for the team:
 
 - **Skip calibration** — opens the test from question 1 on its own, with no camera and nothing saved. Useful for checking how pages look.
-- **Skip to reading tasks (testing)** — the same, but opening at the reading instructions, so the reading section can be checked without going through the first 100 questions.
+- **Skip to reading tasks (testing)** — the same, but opening at the Part 2 page before the reading instructions, so the reading section can be checked without going through the first 100 questions.
 
-Any test page can be opened directly with `?start=<page id>`, e.g. `exam1.html?start=passage-5`. To test the reading section **with** eye tracking and saved data, add it to the capture page instead: `capture.html?id=<your ID>&start=reading-directions`.
+Any test page can be opened directly with `?start=<page id>`, e.g. `exam1.html?start=passage-5`. To test the reading section **with** eye tracking and saved data, add it to the capture page instead: `capture.html?id=<your ID>&start=part-2`.
 
 Remove the two links before real participants use the site.
 
@@ -75,8 +75,10 @@ Defined in `frontend/exam1.html` and rendered one page at a time by `frontend/ex
 
 | Section | Pages |
 |---|---|
+| Part 1 | a title page reading "Part 1", shown right after calibration |
 | Listening Comprehension | directions with an audio example, then 20 audio questions (each clip plays only once) |
 | Grammar, Vocabulary, and Reading Comprehension | 3 directions pages, then 80 text questions (questions 21–100) |
+| Part 2 | a title page reading "Part 2" |
 | Reading | directions, then 12 passages; each passage is followed by its 2 questions on separate pages (questions 101–124) |
 
 Questions can't be revisited once answered. A reload resumes on the same page; a different participant ID starts from the beginning.
@@ -93,7 +95,7 @@ Every gaze sample is saved with the id of the element it landed on (`html_elemen
 | `q95-passage-l1-w12` | question 95, its short passage, word 12 |
 | `q95-question-l1-w3` | question 95, the question itself, word 3 |
 | `q95-a-l1-w2` | question 95, answer a, word 2 |
-| `q1-play`, `q1-number`, `q1-counter`, `q1-btn` | Play button, question number, "Question x of y" counter, Next button |
+| `q1-play`, `q1-counter`, `q1-btn` | Play button, "Question x of y" counter, Next button |
 | `listening-directions-body-l5-w60` | a word in the directions text |
 
 The part before `-l` names the block a word belongs to (passage, question, answer a…), so results can be grouped by word, line or block. Line numbers are saved as they were on the participant's screen, since line breaks depend on screen size. A look that falls in a gap between words or blocks is saved as the nearest labelled word or block within 18 pixels.
@@ -105,7 +107,7 @@ Four tables and one view, with the participant's name on every row so each reads
 | Table | One row per | Columns |
 |---|---|---|
 | `sessions` | participant session | `participant_name`, `test_name`, `started_at`, `browser_width`, `browser_height`, `calibration_error_px` (last accuracy check) |
-| `pages` | test page shown | `participant_name`, `page_order`, `page_id`, `page_type`, `started_at`, `seconds_from_start`, `seconds_on_page`, `answer`, `answer_text`, `answered_at_seconds`, `answer_history` |
+| `pages` | test page shown | `participant_name`, `page_order`, `page_id`, `page_type`, `started_at`, `seconds_from_start`, `seconds_on_page`, `answer`, `answer_text`, `answered_at_seconds`, `answer_history`, `correct_answer`, `is_correct` |
 | `calibration` | accuracy check | `participant_name`, `attempt`, `checked_at`, `mean_error_px`, `points_with_data`, `points` (all 18 points) |
 | `gaze` | 50 gaze samples, packed to save space | `participant_name`, `sample_count`, and arrays `seconds_from_start`, `x_values`, `y_values`, `page_ids`, `element_ids` |
 | `gaze_readable` (view) | gaze sample | `participant_name`, `seconds_from_start`, `page_id`, `x`, `y`, `element_id`, and the element split into `block`, `line`, `word` |
@@ -113,6 +115,7 @@ Four tables and one view, with the participant's name on every row so each reads
 There is also `fixations`, which fills only when someone uses **Process fixations** in the viewer.
 
 - **`pages` holds both timing and answers.** `page_type` is `directions`, `audio` (listening question), `text` (written question) or `reading` (passage). `seconds_on_page` is the time on that question, or the reading time on a passage page. `answer` / `answer_text` is the answer the participant ended with, and `answer_history` lists every answer they clicked with its time, e.g. `[{"answer": "b", "seconds": 30.1}, {"answer": "c", "seconds": 31.4}]`, so changes of mind are kept.
+- **`correct_answer` / `is_correct`** mark each answer right or wrong, from the key in `backend/utils/db/answer_key.py`: CaMLA EPT Form A for questions 1–100 (with question 36 changed from b to a, since our choices are in a different order from the booklet), and answers worked out from the passages for the reading questions, which came without a key. The participant is never shown this, and the key is kept on the server so it isn't in the page source. `is_correct` is false for a question left unanswered, and both are empty for directions and passage pages. When the key changes, answers already saved are re-marked the next time the backend starts.
 - **Read gaze through `gaze_readable`**, one row per sample; the `gaze` table stores 50 samples per row to save space.
 - **One clock for everything:** `seconds_from_start`, `answered_at_seconds` and the answer-history times all count from the moment the participant clicked "Start recording", so gaze, pages and answers line up.
 - `started_at` / `checked_at` are clock times, stored in UTC.
@@ -150,6 +153,10 @@ FROM pages WHERE session_id = 1 AND answer IS NOT NULL ORDER BY page_order;
 SELECT block, count(*) AS samples
 FROM gaze_readable WHERE session_id = 1 AND page_id = 'q95'
 GROUP BY block ORDER BY samples DESC;
+
+-- Each participant's score
+SELECT participant_name, count(*) FILTER (WHERE is_correct) AS correct, count(*) AS questions
+FROM pages WHERE correct_answer IS NOT NULL GROUP BY session_id, participant_name;
 
 -- Accuracy checks, with all 18 points
 SELECT attempt, mean_error_px, points_with_data, points
@@ -209,7 +216,7 @@ To check WebGazer against a hardware eye tracker, run both on the lab computer a
    ```bash
    python tools/gp3_logger.py --out lab_test_1.csv
    ```
-4. **Run the test** in the browser as a participant: ID, Calibrate & Capture, calibration, accuracy check, Start recording, then the questions. To test only the reading section, open `capture.html?id=<ID>&start=reading-directions`.
+4. **Run the test** in the browser as a participant: ID, Calibrate & Capture, calibration, accuracy check, Start recording, then the questions. To test only the reading section, open `capture.html?id=<ID>&start=part-2`.
 5. **Stop the recorder** with Ctrl+C after submitting.
 6. **Compare**, using the session id (the newest row in `sessions`):
    ```bash

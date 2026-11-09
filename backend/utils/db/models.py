@@ -15,7 +15,7 @@ Times called seconds_from_start / *_seconds count from the moment the
 participant clicked "Start recording", so gaze, pages and answers line up.
 """
 from datetime import datetime
-from sqlalchemy import BigInteger, DateTime, Integer, Float, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
@@ -63,6 +63,11 @@ class Page(Base):
     # ...and every answer they clicked, in order, e.g.
     # [{"answer": "b", "seconds": 30.1}, {"answer": "c", "seconds": 31.4}]
     answer_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # From answer_key.py; both empty for pages with no key (directions,
+    # passages, reading-passage questions). is_correct is false when the
+    # question was left unanswered.
+    correct_answer: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
 class Calibration(Base):

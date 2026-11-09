@@ -65,4 +65,30 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await migrate_old_tables(conn)
+        await add_answer_key_columns(conn)
         await create_views(conn)
+
+
+async def add_answer_key_columns(conn) -> None:
+    """Add pages.correct_answer / is_correct to databases created before they
+    existed (create_all only makes missing tables, not missing columns), and
+    mark every saved answer against the current key, so pages saved earlier,
+    or under an older key, are brought up to date."""
+    from sqlalchemy import bindparam, text
+    from sqlalchemy.dialects.postgresql import JSONB
+    from .answer_key import ANSWER_KEY
+
+    await conn.execute(text(
+        "ALTER TABLE pages ADD COLUMN IF NOT EXISTS correct_answer varchar(8), "
+        "ADD COLUMN IF NOT EXISTS is_correct boolean"
+    ))
+    await conn.execute(
+        text("""
+            UPDATE pages p
+            SET correct_answer = k.value,
+                is_correct = coalesce(p.answer = k.value, false)
+            FROM jsonb_each_text(:key) AS k
+            WHERE p.page_id = k.key AND p.correct_answer IS DISTINCT FROM k.value
+        """).bindparams(bindparam("key", type_=JSONB)),
+        {"key": ANSWER_KEY},
+    )

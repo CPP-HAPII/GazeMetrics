@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
 from db.models import Session, Page, Calibration, Gaze, Fixation, GAZE_BATCH_SIZE  # noqa: E402
+from db.answer_key import ANSWER_KEY  # noqa: E402
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -241,16 +242,19 @@ async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db))
 
     clicked = body.get("answers") or []
     last = clicked[-1] if clicked else None
+    answer = str(last["answer"])[:8] if last else None
+    page_id = body.get("page_id") or None
+    correct_answer = ANSWER_KEY.get(page_id)
     db.add(Page(
         session_id=session_id,
         participant_name=participant,
         page_order=int(body.get("page_order") or 0),
-        page_id=body.get("page_id") or None,
+        page_id=page_id,
         page_type=body.get("page_type") or None,
         started_at=_parse_client_time(body.get("started_at")),
         seconds_from_start=num("seconds_from_start"),
         seconds_on_page=num("seconds_on_page"),
-        answer=str(last["answer"])[:8] if last else None,
+        answer=answer,
         answer_text=(str(last["answer_text"])[:1000]
                      if last and last.get("answer_text") is not None else None),
         answered_at_seconds=round(float(last["seconds"]), 2) if last else None,
@@ -258,6 +262,9 @@ async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db))
             {"answer": str(a["answer"])[:8], "seconds": round(float(a["seconds"]), 2)}
             for a in clicked
         ] or None,
+        # Saved only: the participant is never shown whether they were right.
+        correct_answer=correct_answer,
+        is_correct=(answer == correct_answer) if correct_answer else None,
     ))
     return {"status": "success"}
 

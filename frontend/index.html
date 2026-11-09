@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Eye-Tracking Analysis Demo</title>
+  <title>English Test</title>
   <script>
     // Without a participant ID, go straight to the landing page. This runs
     // before anything is drawn, so this page never flashes on screen first.
@@ -18,46 +18,147 @@
   <!-- Start downloading the eye-tracking library now, so the capture page
        finds it already in the browser's cache. -->
   <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/webgazer@3.4.0/dist/webgazer.min.js" />
+  <!-- Same look as the welcome page (landing.html): logo bar, cream page, green button. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kalam&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --green: #1e4d2b;
+      --green-dark: #153a20;
+      --gold: #bd9b60;
+      --ink: #1c1f26;
+      --muted: #5b6b5e;
+      --paper: #f7f6f2;
+      --line: #d8d5cc;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #1E4D2B; color: #fff; min-height: 100vh;
-      display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
     }
-    .wrap { max-width: 560px; padding: 40px; text-align: center; }
-    h1 { font-size: 34px; margin-bottom: 14px; }
-    p { color: #D5E3CF; line-height: 1.6; margin-bottom: 28px; }
-    .cards { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+
+    /* ---------- Nav bar: logos (as on landing.html) ---------- */
+    .nav {
+      flex: 0 0 auto;
+      height: 11vh;
+      min-height: 72px;
+      background: white;
+      border-bottom: 0.8vh solid var(--gold);
+      display: flex;
+      align-items: center;
+      padding: 0 4vw;
+    }
+    .nav-logos {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      width: 100%;
+    }
+    .hapii-logo { justify-self: start; }
+    .cpp-logo { justify-self: center; }
+    .nav-logos img { display: block; height: 6.5vh; width: auto; }
+    .lala-badge {
+      justify-self: end;
+      padding: 1.5vh 1.1vw;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #5f72a8 0%, #8f7ab0 50%, #d9928f 100%);
+      color: white;
+      white-space: nowrap;
+      font-family: 'Kalam', 'Segoe Script', 'Bradley Hand', cursive;
+      font-size: 1.05vw;
+      line-height: 1.3;
+    }
+    .lala-badge u { text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+    .logo-fallback {
+      display: inline-block;
+      padding: 1.6vh 1vw;
+      border: 2px dashed var(--line);
+      border-radius: 6px;
+      font-size: 0.85vw;
+      color: #777;
+    }
+
+    /* ---------- Main area ---------- */
+    .page {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4vh 4vw 5vh;
+    }
+    .wrap { width: 100%; max-width: 62vw; text-align: center; }
+    .field-group { max-width: 30vw; min-width: 280px; margin: 0 auto; }
+    h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 3.6vw;
+      line-height: 1.15;
+      color: var(--green);
+      margin-bottom: 5vh;
+    }
     a.card {
-      background: #FFB500; color: #1E4D2B; text-decoration: none;
-      padding: 20px 26px; border-radius: 12px; min-width: 180px;
-      transition: transform .1s, background .1s;
+      display: block;
+      padding: 2.4vh 1vw;
+      border-radius: 8px;
+      background: var(--green);
+      color: white;
+      text-decoration: none;
+      font-size: 1.6vw;
+      font-weight: 700;
+      letter-spacing: 0.05em;
     }
-    a.card:hover { transform: translateY(-2px); background: #FFC72C; }
-    a.card b { display: block; font-size: 18px; margin-bottom: 6px; }
-    a.card span { font-size: 13px; opacity: .85; }
-    a.skip { display: inline-block; margin-top: 18px; font-size: 14px; color: #D5E3CF; }
-    a.skip:hover { color: #fff; }
-    .steps { margin-top: 34px; font-size: 13px; color: #A9C2A6; }
+    a.card:hover { background: var(--green-dark); }
+    a.card:focus-visible { outline: 4px solid var(--gold); outline-offset: 3px; }
+    .steps { margin-top: 2.5vh; font-size: 0.95vw; line-height: 1.5; color: var(--muted); }
+    a.skip { display: inline-block; margin-top: 1.2vh; font-size: 0.85vw; color: var(--muted); }
+    a.skip:hover { color: var(--green); }
+    .skips { margin-top: 3vh; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="cards">
-      <a class="card" id="captureLink" href="capture.html">
-        <b>Calibrate &amp; Capture</b>
-        <span>Calibrate → record your gaze</span>
-      </a>
+  <nav class="nav" aria-label="Partners">
+    <div class="nav-logos">
+      <img src="assets/hapii.png" alt="hapii" class="hapii-logo" data-fallback="hapii logo">
+      <img src="assets/CPP_Primary_2C_Green_RGB-300px.png" alt="Cal Poly Pomona" data-fallback="CPP logo" class="cpp-logo">
+      <div class="lala-badge">
+        <u>L</u>inguistics <u>a</u>nd <u>La</u>nguage <u>Lab</u>oratory
+      </div>
     </div>
-    <a class="skip" href="exam1.html">Skip calibration</a>
-    <br />
-    <a class="skip" id="readingLink" href="exam1.html?start=reading-directions">Skip to reading tasks (testing)</a>
-    <p class="steps">Requires a webcam. All camera processing happens locally in your browser.</p>
-  </div>
+  </nav>
+
+  <main class="page">
+    <div class="wrap">
+      <h1>Eye-Tracking Setup</h1>
+      <div class="field-group">
+        <a class="card" id="captureLink" href="capture.html">Calibrate &amp; Capture</a>
+        <p class="steps">Requires a webcam. All camera processing happens locally in your browser.</p>
+      </div>
+      <div class="skips">
+        <a class="skip" href="exam1.html">Skip calibration</a>
+        <br />
+        <a class="skip" id="readingLink" href="exam1.html?start=part-2">Skip to reading tasks (testing)</a>
+      </div>
+    </div>
+  </main>
 
   <script src="config.js"></script>
   <script>
+    // Missing logo files show a labeled placeholder instead of a broken-image icon.
+    function showFallback(img) {
+      const span = document.createElement("span");
+      span.className = "logo-fallback";
+      span.textContent = img.dataset.fallback;
+      img.replaceWith(span);
+    }
+    document.querySelectorAll(".nav img").forEach(img => {
+      img.addEventListener("error", () => showFallback(img));
+      if (img.complete && img.naturalWidth === 0) showFallback(img);
+    });
+
     // The participant ID comes from the landing page; without one, go there first.
     (function () {
       let id = new URLSearchParams(window.location.search).get("id");

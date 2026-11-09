@@ -4,13 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Exam 1</title>
-  <link rel="stylesheet" href="exam.css" />
+  <link rel="stylesheet" href="exam.css?v=2" />
 </head>
 <body>
-  <header id="nav-bar">
-    <h1 id="site-title">Mock Language Exam</h1>
-  </header>
-
   <main>
     <section class="card" id="card"></section>
     <div class="submitted" id="submitted">Submitted &mdash; thank you.</div>
@@ -28,6 +24,9 @@
     // question/answer element ids so gaze data stays distinguishable per
     // question even though only one page's markup exists in the DOM at once.
     const PAGES = [
+      // Part 1 (questions 1-100) opens with a title page, the first thing
+      // shown after calibration.
+      { type: "directions", id: "part-1", title: "Part 1", cover: true, buttonLabel: "Next" },
       {
         type: "directions",
         id: "listening-directions",
@@ -769,9 +768,10 @@
   </script>
   <script src="reading-tasks.js"></script>
   <script>
-    // Reading tasks come after the 100 questions: a directions page, then for
-    // each passage the passage itself (the space bar moves on) followed by
-    // its two questions, each on its own page.
+    // Reading tasks come after the 100 questions as Part 2: a title page, a
+    // directions page, then for each passage the passage itself (the space
+    // bar moves on) followed by its two questions, each on its own page.
+    PAGES.push({ type: "directions", id: "part-2", title: "Part 2", cover: true, buttonLabel: "Next" });
     PAGES.push({
       type: "directions",
       id: "reading-directions",
@@ -791,7 +791,7 @@
       });
     });
   </script>
-  <script src="exam.js"></script>
+  <script src="exam.js?v=2"></script>
   <script>
     startExam(PAGES);
   </script>
