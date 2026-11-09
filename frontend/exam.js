@@ -181,9 +181,6 @@
       } catch { /* ignore */ }
     }
 
-    // Questions are numbered by position, skipping directions and reading
-    // passages.
-    const questionPages = pages.filter((p) => p.type !== "directions" && p.type !== "reading");
 
     const progress = loadProgress();
     let current = progress.index;
@@ -200,7 +197,6 @@
       saveProgress(index, audioPlayed);
       const page = pages[index];
       const isLast = index === pages.length - 1;
-      const number = questionPages.indexOf(page) + 1;
       const card = getCard();
       // A clip still playing must not carry over onto the next page.
       if (questionAudio) {
@@ -282,20 +278,15 @@
         card.appendChild(buildOptions(page.id, page.choices));
       }
 
-      // Corner counter: question number, or the page's position within a
-      // multi-page set of directions (pages sharing the same `group`).
-      let countText = null;
-      if (page.type !== "directions") {
-        countText = `Question ${number} of ${questionPages.length}`;
-      } else if (page.group) {
+      // Corner counter, only on multi-page directions (pages sharing the same
+      // `group`). Questions have none, so it can't draw the eyes away from
+      // them; their order is saved anyway (pages.page_order).
+      if (page.group) {
         const groupPages = pages.filter((p) => p.group === page.group);
-        countText = `Page ${groupPages.indexOf(page) + 1} of ${groupPages.length}`;
-      }
-      if (countText) {
         const count = document.createElement("div");
         count.className = "page-count";
         count.id = `${page.id}-counter`;
-        count.textContent = countText;
+        count.textContent = `Page ${groupPages.indexOf(page) + 1} of ${groupPages.length}`;
         card.appendChild(count);
       }
 

@@ -95,7 +95,7 @@ Every gaze sample is saved with the id of the element it landed on (`html_elemen
 | `q95-passage-l1-w12` | question 95, its short passage, word 12 |
 | `q95-question-l1-w3` | question 95, the question itself, word 3 |
 | `q95-a-l1-w2` | question 95, answer a, word 2 |
-| `q1-play`, `q1-counter`, `q1-btn` | Play button, "Question x of y" counter, Next button |
+| `q1-play`, `q1-btn`, `written-directions-1-counter` | Play button, Next button, the "Page x of 3" counter on the written directions (question pages have no counter) |
 | `listening-directions-body-l5-w60` | a word in the directions text |
 
 The part before `-l` names the block a word belongs to (passage, question, answer a…), so results can be grouped by word, line or block. Line numbers are saved as they were on the participant's screen, since line breaks depend on screen size. A look that falls in a gap between words or blocks is saved as the nearest labelled word or block within 18 pixels.
