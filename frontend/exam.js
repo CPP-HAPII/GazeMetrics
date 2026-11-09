@@ -87,36 +87,6 @@
     return audio;
   }
 
-  // Reading passages wrap to about this many lines (Ben's spec: 10 ± 2).
-  const READING_TARGET_LINES = 10;
-
-  // Size a passage's width (in ch, one monospace character each) so it wraps
-  // to READING_TARGET_LINES lines: the narrowest width that still fits in that
-  // many lines. On a screen too narrow for that, it takes the full width and
-  // wraps to a few more lines instead.
-  function fitReadingWidth(el) {
-    const lineHeight = parseFloat(getComputedStyle(el).fontSize) * 1.5;
-    const lines = () => Math.round(el.getBoundingClientRect().height / lineHeight);
-    const parentStyle = getComputedStyle(el.parentElement);
-    const maxPx = el.parentElement.clientWidth
-      - parseFloat(parentStyle.paddingLeft) - parseFloat(parentStyle.paddingRight);
-    let width = Math.ceil(el.textContent.length / READING_TARGET_LINES);
-    el.style.width = width + "ch";
-    // max-width: 100% (exam.css) caps the width at maxPx, which ends this loop.
-    while (lines() > READING_TARGET_LINES && el.getBoundingClientRect().width < maxPx - 1 && width < 400) {
-      width += 1;
-      el.style.width = width + "ch";
-    }
-    while (width > 20) {
-      el.style.width = (width - 1) + "ch";
-      if (lines() > READING_TARGET_LINES) {
-        el.style.width = width + "ch";
-        break;
-      }
-      width -= 1;
-    }
-  }
-
   // Gaze is labelled with the id of the element it lands on, so the finer the
   // ids, the more detailed the data. Every piece of text on a page is split
   // into one span per word, and each word gets an id saying where it is, e.g.
@@ -256,7 +226,6 @@
         text.textContent = page.text;
         wrapWords(text, page.id);
         card.appendChild(text);
-        fitReadingWidth(text);
         labelAllWords(card);
         // Make sure key presses reach this page, not the capture page around it.
         window.focus();
@@ -307,10 +276,8 @@
             ? `<p id="${page.id}-passage">${page.passage}</p><p id="${page.id}-question" class="question">${page.question}</p>`
             : `<p id="${page.id}-question">${page.question}</p>`;
         card.innerHTML = `
-          <div id="${page.id}-instructions" class="prompt-label">Choose the best answer.</div>
           <div id="${page.id}-prompt" class="dialogue">${prompt}</div>
         `;
-        wrapWords(card.querySelector(".prompt-label"), `${page.id}-instructions`);
         card.querySelectorAll(".dialogue p").forEach((p) => wrapWords(p, p.id));
         card.appendChild(buildOptions(page.id, page.choices));
       }
@@ -393,11 +360,9 @@
       if (!e.repeat) window.advanceReading();
     });
 
-    // Where lines break depends on the window's size, so on resize refit a
-    // reading passage's width and rename every word by its new line.
+    // Where lines break depends on the window's size (a passage narrows on
+    // small windows), so on resize rename every word by its new line.
     window.addEventListener("resize", () => {
-      const text = document.querySelector(".reading-text");
-      if (text) fitReadingWidth(text);
       labelAllWords(getCard());
     });
 

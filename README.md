@@ -83,7 +83,7 @@ Defined in `frontend/exam1.html` and rendered one page at a time by `frontend/ex
 
 Questions can't be revisited once answered. A reload resumes on the same page; a different participant ID starts from the beginning.
 
-**Reading passages** (from `MECOL2.xlsx`, stored in `frontend/reading-tasks.js`) follow the supervisor's spec: Consolas 20pt, 1.5 line spacing, nothing else on screen, and the **space bar** (not a button) ends the passage, as explained on the reading directions page. Each passage's width is fitted so it wraps to about 10 lines; this works from about a 1920×960 browser window, and smaller windows wrap to more lines.
+**Reading passages** (from `MECOL2.xlsx`, stored in `frontend/reading-tasks.js`) follow the supervisor's spec: Consolas 20pt, 1.5 line spacing, nothing else on screen, and the **space bar** (not a button) ends the passage, as explained on the reading directions page. Every passage is the same width (100 characters), so longer passages take more lines; narrower windows shrink them all alike. The rest of the test uses Consolas too.
 
 ### Gaze labels
 
