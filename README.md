@@ -49,7 +49,7 @@ The Render free plan puts the backend to sleep after about 15 minutes without re
 ## What a participant does
 
 1. **Welcome page** (`landing.html`) — enters their ID.
-2. **Start page** (`index.html`) — clicks **Calibrate & Capture**.
+2. **Start page** (`index.html`, styled like the welcome page) — clicks **Calibrate & Capture**.
 3. **Camera check** — the page reports a blocked, missing or busy camera instead of continuing.
 4. **Face positioning** — a live camera preview with a square that turns green when both eyes are detected.
 5. **Calibration** — 18 black dots (6 × 3 grid, 12 px, light gray background), shown one at a time. The participant clicks each dot, then keeps looking at it while it shrinks for 1 second; the tracker records a training sample every 50 ms during that time (about 21 per dot).
@@ -114,8 +114,8 @@ Four tables and one view, with the participant's name on every row so each reads
 
 There is also `fixations`, which fills only when someone uses **Process fixations** in the viewer.
 
-- **`pages` holds both timing and answers.** `page_type` is `directions`, `audio` (listening question), `text` (written question) or `reading` (passage). `seconds_on_page` is the time on that question, or the reading time on a passage page. `answer` / `answer_text` is the answer the participant ended with, and `answer_history` lists every answer they clicked with its time, e.g. `[{"answer": "b", "seconds": 30.1}, {"answer": "c", "seconds": 31.4}]`, so changes of mind are kept.
-- **`correct_answer` / `is_correct`** mark each answer right or wrong, from the key in `backend/utils/db/answer_key.py`: CaMLA EPT Form A for questions 1–100 (with question 36 changed from b to a, since our choices are in a different order from the booklet), and answers worked out from the passages for the reading questions, which came without a key. The participant is never shown this, and the key is kept on the server so it isn't in the page source. `is_correct` is false for a question left unanswered, and both are empty for directions and passage pages. When the key changes, answers already saved are re-marked the next time the backend starts.
+- **`pages` holds both timing and answers.** `page_type` is `directions` (including the Part 1 / Part 2 title pages, `part-1` and `part-2`), `audio` (listening question), `text` (written question) or `reading` (passage). `seconds_on_page` is the time on that question, or the reading time on a passage page. `answer` / `answer_text` is the answer the participant ended with, and `answer_history` lists every answer they clicked with its time, e.g. `[{"answer": "b", "seconds": 30.1}, {"answer": "c", "seconds": 31.4}]`, so changes of mind are kept.
+- **`correct_answer` / `is_correct`** mark each answer right or wrong, from the key in `backend/utils/db/answer_key.py`: CaMLA EPT Form A for questions 1–100 (except question 36, changed from the key's b to a: on our page a is "were born", so our choices are probably in a different order from the booklet; not yet checked against the paper test), and, for the reading questions, which came without a key, answers worked out from the passages and not yet confirmed by the professor. The participant is never shown this, and the key is kept on the server so it isn't in the page source. `is_correct` is false for a question left unanswered, and both are empty for directions and passage pages. When the key changes, answers already saved are re-marked the next time the backend starts.
 - **Read gaze through `gaze_readable`**, one row per sample; the `gaze` table stores 50 samples per row to save space.
 - **One clock for everything:** `seconds_from_start`, `answered_at_seconds` and the answer-history times all count from the moment the participant clicked "Start recording", so gaze, pages and answers line up.
 - `started_at` / `checked_at` are clock times, stored in UTC.
@@ -299,8 +299,8 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 
 - **Accuracy is coarse.** WebGazer is webcam-based; on an 18-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual words or answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 18 points.
 - **Answers are not scored.** The answer key isn't in the app yet, so `pages` shows what each participant chose but not whether it was correct.
-- **Small screens:** some question pages (e.g. question 91) cut off the Next button below about a 1920×960 browser window, and the pages can't scroll. Reading passages wrap to more than 10 lines on smaller windows.
-- **Consolas** is a Windows font; on a Mac without it, reading passages fall back to Courier New, which is wider, so lines wrap differently.
+- **Small screens:** some question pages (e.g. question 91) cut off the Next button below about a 1920×960 browser window, and the pages can't scroll. Reading passages wrap to more lines on smaller windows.
+- **Consolas** is a Windows font; on a Mac without it, the whole test falls back to Courier New, which is wider, so lines wrap differently.
 - **Error is stored in pixels**, not degrees; screen size and viewing distance are not collected.
 - **The API has no login.** Anyone with the link can open the viewer and list sessions, including participant names.
 - **The viewer still shows the old sample page** as the background for every session, not the test page that was on screen.
