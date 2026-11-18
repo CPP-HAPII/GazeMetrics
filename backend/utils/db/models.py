@@ -5,7 +5,7 @@ each table reads on its own in Supabase:
 
   sessions      one participant session: who, when, screen, calibration result
   pages         one test page shown: timing, plus the answer chosen there
-  calibration   one accuracy check after calibration, with its 18 points
+  calibration   one accuracy check after calibration, with its 12 points
   gaze          gaze samples, packed GAZE_BATCH_SIZE to a row (to save space);
                 read them one per row through the gaze_readable view
 

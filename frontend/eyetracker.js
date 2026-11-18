@@ -1,7 +1,7 @@
 /*
  * Standalone WebGazer capture.
  *
- * Flow: load WebGazer -> create session -> 9-point calibration ->
+ * Flow: load WebGazer -> create session -> 12-point calibration (3 clicks per dot) ->
  * poll gaze predictions -> batch-POST to the backend. Coordinates are stored in
  * viewport pixels; because the content fills the viewport, they map 1:1 to the
  * page the viewer will reproduce.
@@ -60,7 +60,8 @@
 
   const targets = [];
   // Calibration timing (see buildCalibrationGrid).
-  const CALIB_HOLD_MS = 1000;             // how long a clicked dot shrinks while sampled
+  const CALIB_CLICKS = 3;                 // clicks needed on each dot
+  const CALIB_HOLD_MS = 1000;             // how long the dot shrinks after its last click
   const CALIB_SAMPLE_INTERVAL_MS = 50;    // one training sample per 50 ms (~20 per dot)
   const CALIB_GAP_MS = 250;               // pause before the next dot appears
 
@@ -74,11 +75,10 @@
   const GOOD_FRAC = 0.06;
   const FAIR_FRAC = 0.12;
 
-  // 18 calibration/evaluation positions (6 x 3 grid) as viewport percentages,
-  // following Psarra et al. (J. Eye Mov. Res. 2026, 19, 99), where the 18-18
-  // fixed layout gave the lowest error. Edge points sit close to the borders
-  // (with a small margin) so WebGazer trains where it's weakest.
-  const POINT_COLUMNS = [6, 23.6, 41.2, 58.8, 76.4, 94];
+  // 12 calibration/evaluation positions (4 x 3 grid) as viewport percentages.
+  // Edge points sit close to the borders (with a small margin) so WebGazer
+  // trains where it's weakest.
+  const POINT_COLUMNS = [6, 35.33, 64.67, 94];
   const POINT_ROWS = [8, 50, 92];
   const POINT_POSITIONS = POINT_ROWS.flatMap((y) => POINT_COLUMNS.map((x) => [x, y]));
 
@@ -248,11 +248,10 @@
   /* ---------------- calibration ---------------- */
 
   // Calibration shows one dot at a time, as in Psarra et al. The participant
-  // clicks it (which makes sure they are looking at it), then keeps looking
-  // while it shrinks away. WebGazer gets a training sample at the click and
-  // every CALIB_SAMPLE_INTERVAL_MS while it shrinks: about 20 clean samples
-  // per point, instead of a few rapid clicks with all dots on screen at once,
-  // when the eyes may already be moving on to the next dot.
+  // clicks it CALIB_CLICKS times (each click is a training sample, and the dot
+  // gets a little smaller so they can see it counted), then keeps looking
+  // while it shrinks away. WebGazer also gets a training sample every
+  // CALIB_SAMPLE_INTERVAL_MS while it shrinks.
   function buildCalibrationGrid() {
     grid.innerHTML = "";
     targets.length = 0;
@@ -263,6 +262,7 @@
       cell.className = "target";
       cell.style.left = xPct + "%";
       cell.style.top = yPct + "%";
+      cell.dataset.clicks = "0";
       const dot = document.createElement("div");
       cell.appendChild(dot);
       // The click target is the padded cell, not the 12px dot, so the small
@@ -282,10 +282,9 @@
     e.stopPropagation();
     const cell = e.currentTarget;
     if (!cell.classList.contains("active") || cell.classList.contains("collecting")) return;
-    cell.classList.add("collecting");   // starts the shrink animation (capture.css)
 
     // Train WebGazer on the dot's true screen position (not the raw cursor
-    // point). Measured before shrinking; scaling keeps the same centre.
+    // point). Scaling the dot keeps the same centre.
     const rect = cell.firstChild.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
@@ -293,6 +292,15 @@
       try { window.webgazer.recordScreenPosition(cx, cy, "click"); } catch { /* ignore */ }
     };
     record();
+
+    const clicks = Number(cell.dataset.clicks) + 1;
+    cell.dataset.clicks = String(clicks);
+    if (clicks < CALIB_CLICKS) {
+      cell.style.setProperty("--dot-scale", String(1 - 0.2 * clicks));
+      return;
+    }
+
+    cell.classList.add("collecting");   // starts the shrink animation (capture.css)
     const sampleTimer = setInterval(record, CALIB_SAMPLE_INTERVAL_MS);
 
     setTimeout(() => {

@@ -52,11 +52,11 @@ The Render free plan puts the backend to sleep after about 15 minutes without re
 2. **Start page** (`index.html`, styled like the welcome page) — clicks **Calibrate & Capture**.
 3. **Camera check** — the page reports a blocked, missing or busy camera instead of continuing.
 4. **Face positioning** — a live camera preview with a square that turns green when both eyes are detected.
-5. **Calibration** — 18 black dots (6 × 3 grid, 12 px, light gray background), shown one at a time. The participant clicks each dot, then keeps looking at it while it shrinks for 1 second; the tracker records a training sample every 50 ms during that time (about 21 per dot).
-6. **Accuracy check** — a dot moves through the same 18 positions, 3 seconds each; the average error is shown as Good / Fair / Poor, with the option to recalibrate.
+5. **Calibration** — 12 black dots (4 × 3 grid, 12 px, light gray background), shown one at a time. The participant clicks each dot three times (each click is a training sample, and the dot gets a little smaller so they can see it counted), then keeps looking at it while it shrinks for 1 second; the tracker records a training sample every 50 ms during that time (about 23 per dot in all).
+6. **Accuracy check** — a dot moves through the same 12 positions, 3 seconds each; the average error is shown as Good / Fair / Poor, with the option to recalibrate.
 7. **Test** — gaze is recorded about 10 times per second (see [The test](#the-test)). The participant does not see where the tracker thinks they are looking (the live gaze dot is hidden, so it can't draw their eyes). Every mouse click during the test also trains the tracker, since people look at what they click; this keeps it adjusting as the participant shifts over a long test.
 
-The 18-point layout, target size and colours, and the one-dot-at-a-time calibration, follow Psarra, Krassanakis and Kesidis, *Systematic Performance Evaluation of WebGazer Webcam-Based Eye Tracking with Spatial and Angular Error Analysis*, J. Eye Mov. Res. 2026, 19, 99 (https://doi.org/10.3390/jemr19050099). The settings are constants at the top of `frontend/eyetracker.js`.
+The target size and colours, and the one-dot-at-a-time calibration, follow Psarra, Krassanakis and Kesidis, *Systematic Performance Evaluation of WebGazer Webcam-Based Eye Tracking with Spatial and Angular Error Analysis*, J. Eye Mov. Res. 2026, 19, 99 (https://doi.org/10.3390/jemr19050099). The settings are constants at the top of `frontend/eyetracker.js`.
 
 ### Testing shortcuts
 
@@ -108,7 +108,7 @@ Four tables and one view, with the participant's name on every row so each reads
 |---|---|---|
 | `sessions` | participant session | `participant_name`, `test_name`, `started_at`, `browser_width`, `browser_height`, `calibration_error_px` (last accuracy check) |
 | `pages` | test page shown | `participant_name`, `page_order`, `page_id`, `page_type`, `started_at`, `seconds_from_start`, `seconds_on_page`, `answer`, `answer_text`, `answered_at_seconds`, `answer_history`, `correct_answer`, `is_correct` |
-| `calibration` | accuracy check | `participant_name`, `attempt`, `checked_at`, `mean_error_px`, `points_with_data`, `points` (all 18 points) |
+| `calibration` | accuracy check | `participant_name`, `attempt`, `checked_at`, `mean_error_px`, `points_with_data`, `points` (all 12 points) |
 | `gaze` | 50 gaze samples, packed to save space | `participant_name`, `sample_count`, and arrays `seconds_from_start`, `x_values`, `y_values`, `page_ids`, `element_ids` |
 | `gaze_readable` (view) | gaze sample | `participant_name`, `seconds_from_start`, `page_id`, `x`, `y`, `element_id`, and the element split into `block`, `line`, `word` |
 
@@ -158,7 +158,7 @@ GROUP BY block ORDER BY samples DESC;
 SELECT participant_name, count(*) FILTER (WHERE is_correct) AS correct, count(*) AS questions
 FROM pages WHERE correct_answer IS NOT NULL GROUP BY session_id, participant_name;
 
--- Accuracy checks, with all 18 points
+-- Accuracy checks, with all 12 points
 SELECT attempt, mean_error_px, points_with_data, points
 FROM calibration WHERE session_id = 1 ORDER BY attempt;
 ```
@@ -276,7 +276,7 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 | `GET /api/health` | Check (and wake) the backend; touches no data |
 | `POST /api/session` | Create a session with the participant's ID and browser size; returns `session_id` |
 | `POST /api/points` | Save gaze samples (sent about every 2 seconds); written to the database in batches every 5 seconds |
-| `POST /api/validation` | Save an accuracy check (its 18 points) and update the session's calibration error |
+| `POST /api/validation` | Save an accuracy check (its 12 points) and update the session's calibration error |
 | `POST /api/page-visits` | Save one page: which page, when it appeared, how long it stayed, and the answers clicked on it |
 | `GET /api/sessions` | List sessions with point and fixation counts |
 | `GET /api/session/{id}` | One session's details |
@@ -286,7 +286,7 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 
 ## Status
 
-- ✅ Welcome page with participant ID; capture with face positioning, one-dot-at-a-time 18-point calibration and per-point accuracy check
+- ✅ Welcome page with participant ID; capture with face positioning, one-dot-at-a-time 12-point calibration (3 clicks per dot) and per-point accuracy check
 - ✅ The full test: 20 listening questions, 80 written questions, 12 reading passages with 24 questions
 - ✅ Word-level gaze labels on every page, page timing, time per question and reading time per passage
 - ✅ Live gaze dot hidden from participants during the test
@@ -297,7 +297,7 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 
 ## Notes and limitations
 
-- **Accuracy is coarse.** WebGazer is webcam-based; on an 18-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual words or answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 18 points.
+- **Accuracy is coarse.** WebGazer is webcam-based; on a 12-point check, average errors of a few hundred pixels are normal and match the paper above. The data separates broad areas of a page better than individual words or answer options. The Good / Fair / Poor limits (6% and 12% of the screen diagonal) were set for an earlier centre-only check and are strict for 12 points.
 - **Answers are not scored.** The answer key isn't in the app yet, so `pages` shows what each participant chose but not whether it was correct.
 - **Small screens:** some question pages (e.g. question 91) cut off the Next button below about a 1920×960 browser window, and the pages can't scroll. Reading passages wrap to more lines on smaller windows.
 - **Consolas** is a Windows font; on a Mac without it, the whole test falls back to Courier New, which is wider, so lines wrap differently.

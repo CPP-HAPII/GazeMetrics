@@ -176,7 +176,7 @@ async def create_session(request: Request, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/validation")
 async def store_validation(request: Request, db: AsyncSession = Depends(get_db)):
-    """Store one accuracy check: its 18 points and their average error, and
+    """Store one accuracy check: its 12 points and their average error, and
     update the session's calibration_error_px to this latest check.
 
     Body: {session_id, attempt, points: [{point_index, target_x, target_y,
