@@ -33,7 +33,6 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
 from db.models import Session, Page, Calibration, Gaze, Fixation, GAZE_BATCH_SIZE  # noqa: E402
 from db.answer_key import ANSWER_KEY  # noqa: E402
-from db.readable import update_page_labels  # noqa: E402
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -270,9 +269,6 @@ async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db))
         correct_answer=correct_answer,
         is_correct=(answer == correct_answer) if correct_answer else None,
     ))
-    # Fill its plain-English name (Question 54).
-    await db.flush()
-    await update_page_labels(db, [session_id])
     return {"status": "success"}
 
 

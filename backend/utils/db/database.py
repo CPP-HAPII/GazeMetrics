@@ -56,15 +56,15 @@ async def get_db() -> AsyncSession:
 
 async def init_db() -> None:
     """Create any missing tables, copy data over from the old tables the first
-    time (see migrate_old_tables.py), (re)create the gaze_readable view, fill
-    pages.page and describe every column
+    time (see migrate_old_tables.py), (re)create the gaze_readable view, create
+    pages_readable and describe every column
     (see readable.py).
     Called at app startup."""
     from . import models  # noqa: F401 - ensure models register with Base.metadata
     from .views import create_views
     from .migrate_old_tables import migrate_old_tables
     from .readable import (
-        add_comments, add_page_columns, create_functions, update_page_labels,
+        add_comments, create_functions, drop_page_column,
     )
 
     async with engine.begin() as conn:
@@ -72,10 +72,9 @@ async def init_db() -> None:
         await migrate_old_tables(conn)
         await add_answer_key_columns(conn)
         await add_word_columns(conn)
-        await add_page_columns(conn)
+        await drop_page_column(conn)
         await create_functions(conn)
         await create_views(conn)
-        await update_page_labels(conn)
         await add_comments(conn)
 
 

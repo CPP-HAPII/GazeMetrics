@@ -2,15 +2,14 @@
 
 - Two SQL functions turn the short ids saved by the test page into plain
   English: gaze_page_label('q54') = 'Question 54', and
-  gaze_area('q54', 'q54-b-text') = 'answer b'. The gaze_readable view and
-  the pages table both use them.
-- pages gets a plain-English `page` column (update_page_labels), filled for
-  every saved page at startup and for each new page as it is saved.
+  gaze_area('q54', 'q54-b-text') = 'answer b'. The gaze_readable and
+  pages_readable views use them.
+- The pages_readable view (views.py) shows the pages table cleaned up for
+  reading.
 - Every table, the view and every column get a description (add_comments),
   which Supabase shows when you hover over a table or column name.
 """
-from sqlalchemy import Integer, bindparam, text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import text
 
 PAGE_LABEL_SQL = r"""
 CREATE OR REPLACE FUNCTION gaze_page_label(page_id text) RETURNS text
@@ -80,23 +79,11 @@ async def create_functions(conn) -> None:
     await conn.execute(text(AREA_SQL))
 
 
-async def add_page_columns(conn) -> None:
-    """Add pages.page to a pages table created before it existed
-    (create_all only makes missing tables, not missing columns)."""
-    await conn.execute(text("ALTER TABLE pages ADD COLUMN IF NOT EXISTS page varchar(255)"))
-
-
-async def update_page_labels(conn, session_ids=None) -> None:
-    """Fill pages.page (Question 54) from page_id, for the given sessions
-    (None = all). `conn` is a connection or session."""
-    sessions = bindparam("sessions", value=session_ids, type_=ARRAY(Integer))
-    await conn.execute(
-        text("""
-            UPDATE pages SET page = gaze_page_label(page_id)
-            WHERE page IS DISTINCT FROM gaze_page_label(page_id)
-              AND (CAST(:sessions AS int[]) IS NULL OR session_id = ANY(CAST(:sessions AS int[])))
-        """).bindparams(sessions)
-    )
+async def drop_page_column(conn) -> None:
+    """Remove pages.page, an earlier copy of the plain-English page name; the
+    pages_readable view now shows it (worked out from page_id, so nothing is
+    lost)."""
+    await conn.execute(text("ALTER TABLE pages DROP COLUMN IF EXISTS page"))
 
 
 # ---------------------------------------------------------------- comments
@@ -119,25 +106,30 @@ COMMENTS = {
             "calibration_error_px": "Average distance (pixels) between where the participant looked and where the tracker thought they looked, in the last accuracy check. Lower is better.",
         },
     ),
-    "pages": (
-        "One row per test page shown: how long it was on screen, the answer chosen and whether it was correct. The best table for an overview.",
+    "pages_readable": (
+        "One row per test page shown, per participant: which page, how long it was on screen, the answer chosen and whether it was correct. The best place to start.",
         {
-            "id": "Row number.",
-            "session_id": "Which session (sessions.id).",
             "participant_name": "The participant's ID.",
+            "session_id": "Which session (sessions.id); tells apart two sessions by the same participant.",
             "page_order": "Order the page was shown in: 1 = first.",
-            "page_id": "Short page id. " + ID_NOTE,
-            "page": "The page in plain English, e.g. Question 54.",
+            "page": "The page in plain English, e.g. Question 54, Reading passage 3, question 1.",
             "page_type": "directions, audio (listening question), text (written question) or reading (reading passage).",
-            "started_at": "When the page appeared (UTC).",
-            "seconds_from_start": "When the page appeared, in seconds since the participant clicked Start recording.",
+            "seconds_from_start": "When the page appeared, in seconds since the participant clicked Start recording (the same clock as gaze_readable).",
             "seconds_on_page": "How long the page was on screen, in seconds.",
-            "answer": "The answer the participant ended with: a, b, c or d. Empty if none.",
+            "answer": "The answer the participant ended with: a, b, c or d. Empty if none, or on pages without a question.",
             "answer_text": "The text of that answer.",
-            "answered_at_seconds": "When that answer was clicked, in seconds since Start recording.",
-            "answer_history": "Every answer clicked on the page, in order, with the time of each click (shows changed answers).",
             "correct_answer": "The correct answer from the answer key. Empty for pages without one.",
             "is_correct": "true if the answer matches the key; false if wrong or unanswered.",
+            "answer_changes": "Only when the participant changed their answer: every answer clicked, in order, e.g. c → a.",
+        },
+    ),
+    "pages": (
+        "Raw storage for pages_readable, kept for the app and for exact times. Open pages_readable instead.",
+        {
+            "page_id": "Short page id. " + ID_NOTE,
+            "started_at": "When the page appeared (UTC clock time).",
+            "answered_at_seconds": "When the final answer was clicked, in seconds since Start recording.",
+            "answer_history": "Every answer clicked on the page, in order, with the time of each click.",
         },
     ),
     "gaze_readable": (
@@ -204,7 +196,7 @@ async def add_comments(conn) -> None:
     for table, (table_comment, columns) in COMMENTS.items():
         if table not in tables:
             continue
-        kind = "VIEW" if table == "gaze_readable" else "TABLE"
+        kind = "VIEW" if table.endswith("_readable") else "TABLE"
         await conn.execute(text(f"COMMENT ON {kind} {table} IS {_quote(table_comment)}"))
         for column, comment in columns.items():
             if (table, column) in existing:

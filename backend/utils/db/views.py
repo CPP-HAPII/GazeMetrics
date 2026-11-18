@@ -1,10 +1,12 @@
-"""The one database view, (re)created at app startup.
+"""The two database views, (re)created at app startup: gaze_readable and
+pages_readable, the tables people browse in Supabase.
 
 gaze_readable unpacks the gaze table (50 samples per row) into one row per
 gaze sample:
 
 - page: the page in plain English (Question 54). The short page id (q54)
-  is left out; it is the start of element_id, and pages.page also matches.
+  is left out; it is the start of element_id, and pages_readable.page
+  matches.
 - element_id: the exact labelled part of the page under the gaze point, as
   saved (q54-b-text); block is the same in plain English (answer b). The
   functions behind both are in readable.py.
@@ -47,6 +49,35 @@ CROSS JOIN LATERAL unnest(
 """
 
 
+# pages cleaned up for reading: the plain-English page instead of page_id,
+# without the row id, the clock time (seconds_from_start gives the same on
+# the gaze clock) or answered_at_seconds, and the answer history only when
+# the answer was changed.
+PAGES_READABLE_SQL = """
+CREATE VIEW pages_readable AS
+SELECT
+    p.participant_name,
+    p.session_id,
+    p.page_order,
+    gaze_page_label(p.page_id) AS page,
+    p.page_type,
+    round(p.seconds_from_start::numeric, 2) AS seconds_from_start,
+    round(p.seconds_on_page::numeric, 2) AS seconds_on_page,
+    p.answer,
+    p.answer_text,
+    p.correct_answer,
+    p.is_correct,
+    CASE WHEN jsonb_typeof(p.answer_history) = 'array'
+              AND jsonb_array_length(p.answer_history) > 1
+         THEN (SELECT string_agg(e.value ->> 'answer', ' → ' ORDER BY e.ordinality)
+               FROM jsonb_array_elements(p.answer_history) WITH ORDINALITY AS e)
+    END AS answer_changes
+FROM pages p
+"""
+
+
 async def create_views(conn: AsyncConnection) -> None:
     await conn.execute(text(DROP_GAZE_READABLE_SQL))
     await conn.execute(text(GAZE_READABLE_SQL))
+    await conn.execute(text("DROP VIEW IF EXISTS pages_readable"))
+    await conn.execute(text(PAGES_READABLE_SQL))

@@ -68,8 +68,6 @@ class Page(Base):
     # question was left unanswered.
     correct_answer: Mapped[str | None] = mapped_column(String(8), nullable=True)
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    # The page in plain English (Question 54); see readable.update_page_labels.
-    page: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class Calibration(Base):
