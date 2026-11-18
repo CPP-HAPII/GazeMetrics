@@ -68,6 +68,8 @@ class Page(Base):
     # question was left unanswered.
     correct_answer: Mapped[str | None] = mapped_column(String(8), nullable=True)
     is_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # The page in plain English (Question 54); see readable.update_page_labels.
+    page: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class Calibration(Base):
@@ -92,7 +94,7 @@ class Calibration(Base):
 class Gaze(Base):
     """Up to GAZE_BATCH_SIZE gaze samples, packed as parallel arrays
     (x_values[i], y_values[i], seconds_from_start[i], page_ids[i] and
-    element_ids[i] are all sample i). Read through the gaze_readable view."""
+    element_ids[i], word_ids[i], ... are all sample i). Read through the gaze_readable view."""
     __tablename__ = "gaze"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -106,6 +108,12 @@ class Gaze(Base):
     y_values: Mapped[list[float]] = mapped_column(ARRAY(Float), nullable=False)
     page_ids: Mapped[list[str | None]] = mapped_column(ARRAY(String(255)), nullable=False)
     element_ids: Mapped[list[str | None]] = mapped_column(ARRAY(String(255)), nullable=False)
+    # The nearest word to each sample (see eyetracker.js nearestWord): its id,
+    # its text, and its distance in px from the gaze point (0 = on the word).
+    # NULL for rows saved before these columns existed.
+    word_ids: Mapped[list[str | None] | None] = mapped_column(ARRAY(String(255)), nullable=True)
+    word_texts: Mapped[list[str | None] | None] = mapped_column(ARRAY(String(255)), nullable=True)
+    word_distances: Mapped[list[float | None] | None] = mapped_column(ARRAY(Float), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

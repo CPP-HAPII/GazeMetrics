@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 from db.database import get_db, init_db, AsyncSessionLocal  # noqa: E402
 from db.models import Session, Page, Calibration, Gaze, Fixation, GAZE_BATCH_SIZE  # noqa: E402
 from db.answer_key import ANSWER_KEY  # noqa: E402
+from db.readable import update_page_labels  # noqa: E402
 
 # Minimum gaze points needed for the clustering pipeline to find a knee/fixations.
 MIN_POINTS_FOR_FIXATIONS = 40
@@ -110,6 +111,9 @@ def _pack_points(points: list[dict]) -> list[dict]:
                     y_values=[s["y"] for s in chunk],
                     page_ids=[s["page_id"] for s in chunk],
                     element_ids=[s["element_id"] for s in chunk],
+                    word_ids=[s["word_id"] for s in chunk],
+                    word_texts=[s["word_text"] for s in chunk],
+                    word_distances=[s["word_distance"] for s in chunk],
                 )
             )
     return batches
@@ -266,6 +270,9 @@ async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db))
         correct_answer=correct_answer,
         is_correct=(answer == correct_answer) if correct_answer else None,
     ))
+    # Fill its plain-English name (Question 54).
+    await db.flush()
+    await update_page_labels(db, [session_id])
     return {"status": "success"}
 
 
@@ -273,7 +280,8 @@ async def store_page_visit(request: Request, db: AsyncSession = Depends(get_db))
 async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
     """Queue gaze points for the next batch write.
 
-    Body: {points: [{session_id, x, y, timestamp, page_id, html_element_id}]},
+    Body: {points: [{session_id, x, y, timestamp, page_id, html_element_id,
+    word_id, word_text, word_distance_px}]},
     timestamp in seconds since recording started. Points are held in
     memory and flushed to Postgres as a single bulk insert every
     POINT_FLUSH_INTERVAL_SECONDS by `_flush_loop`, rather than being written
@@ -296,6 +304,11 @@ async def store_points(request: Request, db: AsyncSession = Depends(get_db)):
                 seconds=float(p["timestamp"]),
                 page_id=(p.get("page_id") or None),
                 element_id=(p.get("html_element_id") or None),
+                word_id=(p.get("word_id") or None),
+                word_text=(p.get("word_text") or None),
+                word_distance=(
+                    float(p["word_distance_px"]) if p.get("word_distance_px") is not None else None
+                ),
             )
         )
 

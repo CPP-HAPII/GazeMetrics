@@ -595,6 +595,38 @@
     return bestDist <= radius ? best : null;
   }
 
+  // WebGazer is usually off by 100 px or more, so a look at a word often
+  // lands just beside it, in the space between lines or to the right of a
+  // short answer. Besides the element under the point, each sample saves the
+  // nearest word on the page within WORD_SNAP_RADIUS (with its text and how
+  // far away it was, 0 = right on it), so reading can be studied word by
+  // word and the distance used to keep only close matches. Looks at buttons
+  // and audio players get no word.
+  const WORD_SNAP_RADIUS = 60; // px
+
+  function nearestWord(doc, hitEl, x, y) {
+    if (!doc || (hitEl && hitEl.closest && hitEl.closest("button, audio"))) return null;
+    if (hitEl && hitEl.classList && hitEl.classList.contains("word") && hitEl.id) {
+      return { el: hitEl, dist: 0 };
+    }
+    let best = null;
+    let bestDist = Infinity;
+    for (const w of doc.querySelectorAll(".word[id]")) {
+      const dist = distanceToRect(w.getBoundingClientRect(), x, y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = w;
+      }
+    }
+    return best && bestDist <= WORD_SNAP_RADIUS ? { el: best, dist: bestDist } : null;
+  }
+
+  // The word as read, without surrounding punctuation ("dog," -> "dog").
+  function wordText(el) {
+    const raw = el.textContent.trim();
+    return raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "") || raw;
+  }
+
   async function logPoint() {
     if (!calibrationFinish || sessionId == null) return;
     const data = await window.webgazer.getCurrentPrediction();
@@ -632,6 +664,8 @@
       if (nearest) html_element_id = nearest.id;
     }
 
+    const word = nearestWord(frameDoc, el, data.x, data.y);
+
     dataCache.push({
       session_id: sessionId,
       x: parseInt(data.x, 10),
@@ -639,6 +673,9 @@
       timestamp: timeElapsed,
       page_id: currentVisit ? currentVisit.page_id : null,
       html_element_id,
+      word_id: word ? word.el.id : null,
+      word_text: word ? wordText(word.el) : null,
+      word_distance_px: word ? Math.round(word.dist) : null,
     });
 
     if (dataCache.length >= MAX_CACHE_SIZE) flushCache();
