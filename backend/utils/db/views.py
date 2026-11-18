@@ -3,7 +3,8 @@
 gaze_readable unpacks the gaze table (50 samples per row) into one row per
 gaze sample:
 
-- page: the page in plain English (Question 54); page_id is the short id (q54).
+- page: the page in plain English (Question 54). The short page id (q54)
+  is left out; it is the start of element_id, and pages.page also matches.
 - element_id: the exact labelled part of the page under the gaze point, as
   saved (q54-b-text); block is the same in plain English (answer b). The
   functions behind both are in readable.py.
@@ -31,7 +32,6 @@ SELECT
     g.participant_name,
     round(u.seconds::numeric, 2) AS seconds_from_start,
     gaze_page_label(u.page_id) AS page,
-    u.page_id,
     u.x,
     u.y,
     u.element_id,

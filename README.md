@@ -120,14 +120,14 @@ Skip `gaze` (raw storage, 50 samples packed per row) and `fixations` (empty unti
 | `pages` | test page shown | `participant_name`, `page_order`, `page_id`, `page_type`, `started_at`, `seconds_from_start`, `seconds_on_page`, `answer`, `answer_text`, `answered_at_seconds`, `answer_history`, `correct_answer`, `is_correct`, `page` (plain English, e.g. Question 54) |
 | `calibration` | accuracy check | `participant_name`, `attempt`, `checked_at`, `mean_error_px`, `points_with_data`, `points` (all 12 points) |
 | `gaze` | 50 gaze samples, packed to save space | `participant_name`, `sample_count`, and arrays `seconds_from_start`, `x_values`, `y_values`, `page_ids`, `element_ids`, `word_ids`, `word_texts`, `word_distances` |
-| `gaze_readable` (view) | gaze sample | `participant_name`, `seconds_from_start`, `page` (e.g. Question 54), `page_id`, `x`, `y`, `element_id`, `block` (e.g. answer b), and the nearest word: `word` (its text), `word_distance_px`, `line` |
+| `gaze_readable` (view) | gaze sample | `participant_name`, `seconds_from_start`, `page` (e.g. Question 54), `x`, `y`, `element_id`, `block` (e.g. answer b), and the nearest word: `word` (its text), `word_distance_px`, `line` |
 
 There is also `fixations`, which fills only when someone uses **Process fixations** in the viewer.
 
 - **`pages` holds both timing and answers.** `page_type` is `directions` (including the Part 1 / Part 2 title pages, `part-1` and `part-2`), `audio` (listening question), `text` (written question) or `reading` (passage). `seconds_on_page` is the time on that question, or the reading time on a passage page. `answer` / `answer_text` is the answer the participant ended with, and `answer_history` lists every answer they clicked with its time, e.g. `[{"answer": "b", "seconds": 30.1}, {"answer": "c", "seconds": 31.4}]`, so changes of mind are kept.
 - **`correct_answer` / `is_correct`** mark each answer right or wrong, from the key in `backend/utils/db/answer_key.py`: CaMLA EPT Form A for questions 1–100 (except question 36, changed from the key's b to a: on our page a is "were born", so our choices are probably in a different order from the booklet; not yet checked against the paper test), and, for the reading questions, which came without a key, answers worked out from the passages and not yet confirmed by the professor. The participant is never shown this, and the key is kept on the server so it isn't in the page source. `is_correct` is false for a question left unanswered, and both are empty for directions and passage pages. When the key changes, answers already saved are re-marked the next time the backend starts.
 - **Read gaze through `gaze_readable`**, one row per sample; the `gaze` table stores 50 samples per row to save space.
-- **`page` and `block` are the plain-English versions of `page_id` and `element_id`.** `page_id` `q54` is `Question 54`; `passage-3-q1` is `Reading passage 3, question 1`. `element_id` is the exact labelled spot (`q54-b-text`, `q54-b-l1-w3`, …), and `block` names the part of the page it belongs to: `question`, `passage`, `answer a`–`d`, `between answers`, `instructions`, `audio player`, `title`, `directions text`, `Next button`, `empty space on the page` or `page margin`. Both are worked out by two database functions in `backend/utils/db/readable.py`, so they also apply to sessions recorded earlier.
+- **`page` and `block` are the plain-English versions of `page_id` and `element_id`.** The view shows only `page`. To match its rows with `pages`, use `page`, which both have. `page_id` `q54` is `Question 54`; `passage-3-q1` is `Reading passage 3, question 1`. `element_id` is the exact labelled spot (`q54-b-text`, `q54-b-l1-w3`, …), and `block` names the part of the page it belongs to: `question`, `passage`, `answer a`–`d`, `between answers`, `instructions`, `audio player`, `title`, `directions text`, `Next button`, `empty space on the page` or `page margin`. Both are worked out by two database functions in `backend/utils/db/readable.py`, so they also apply to sessions recorded earlier.
 - **One clock for everything:** `seconds_from_start`, `answered_at_seconds` and the answer-history times all count from the moment the participant clicked "Start recording", so gaze, pages and answers line up.
 - `started_at` / `checked_at` are clock times, stored in UTC.
 - No video or images are stored; the camera feed is processed in the browser.
@@ -162,7 +162,7 @@ FROM pages WHERE session_id = 1 AND answer IS NOT NULL ORDER BY page_order;
 
 -- Where the participant looked on question 95 (passage, question, answers a-d)
 SELECT block, count(*) AS samples
-FROM gaze_readable WHERE session_id = 1 AND page_id = 'q95'
+FROM gaze_readable WHERE session_id = 1 AND page = 'Question 95'
 GROUP BY block ORDER BY samples DESC;
 
 -- Each participant's score

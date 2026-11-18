@@ -147,7 +147,6 @@ COMMENTS = {
             "participant_name": "The participant's ID.",
             "seconds_from_start": "When the sample was taken, in seconds since Start recording.",
             "page": "The page in plain English, e.g. Question 54.",
-            "page_id": "Short page id, matching pages.page_id. " + ID_NOTE,
             "x": "Gaze position, pixels from the left of the browser window.",
             "y": "Gaze position, pixels from the top of the browser window.",
             "element_id": "The exact labelled part of the page under the gaze point (detailed id, e.g. q54-b-text = answer b's text). Empty when nothing labelled was there.",
