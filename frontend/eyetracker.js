@@ -597,11 +597,15 @@
 
   // WebGazer is usually off by 100 px or more, so a look at a word often
   // lands just beside it, in the space between lines or to the right of a
-  // short answer. Besides the element under the point, each sample saves the
-  // nearest word on the page within WORD_SNAP_RADIUS (with its text and how
-  // far away it was, 0 = right on it), so reading can be studied word by
-  // word and the distance used to keep only close matches. Looks at buttons
-  // and audio players get no word.
+  // short answer. Besides the element under the point, each sample saves a
+  // word (with its text and how far away it was, 0 = right on it), so reading
+  // can be studied word by word and line by line, and the distance used to
+  // keep only close matches:
+  // - inside a piece of text (an answer's text box, the question, a passage),
+  //   the nearest word of that text, however far: the box can be much wider
+  //   than a short answer, and the look was still at that text;
+  // - anywhere else, the nearest word on the page within WORD_SNAP_RADIUS.
+  // Looks at buttons and audio players get no word.
   const WORD_SNAP_RADIUS = 60; // px
 
   function nearestWord(doc, hitEl, x, y) {
@@ -609,16 +613,18 @@
     if (hitEl && hitEl.classList && hitEl.classList.contains("word") && hitEl.id) {
       return { el: hitEl, dist: 0 };
     }
+    const textBlock = hitEl && hitEl.closest ? hitEl.closest("[data-word-base]") : null;
+    const radius = textBlock ? Infinity : WORD_SNAP_RADIUS;
     let best = null;
     let bestDist = Infinity;
-    for (const w of doc.querySelectorAll(".word[id]")) {
+    for (const w of (textBlock || doc).querySelectorAll(".word[id]")) {
       const dist = distanceToRect(w.getBoundingClientRect(), x, y);
       if (dist < bestDist) {
         bestDist = dist;
         best = w;
       }
     }
-    return best && bestDist <= WORD_SNAP_RADIUS ? { el: best, dist: bestDist } : null;
+    return best && bestDist <= radius ? { el: best, dist: bestDist } : null;
   }
 
   // The word as read, without surrounding punctuation ("dog," -> "dog").

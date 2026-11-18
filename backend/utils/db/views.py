@@ -7,7 +7,8 @@ gaze sample:
 - element_id: the exact labelled part of the page under the gaze point, as
   saved (q54-b-text); block is the same in plain English (answer b). The
   functions behind both are in readable.py.
-- word: the nearest word to the point (within 60 px, see eyetracker.js),
+- word: the nearest word to the point (in the same text, or within 60 px
+  elsewhere; see eyetracker.js nearestWord),
   as text, e.g. "dog". line is the line of its block that word is on, read
   from the word's id (q95-a-l1-w2 = question 95, answer a, line 1).
 - word_distance_px: how far the point was from that word (0 = right on it).

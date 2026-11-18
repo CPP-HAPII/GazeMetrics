@@ -152,7 +152,7 @@ COMMENTS = {
             "y": "Gaze position, pixels from the top of the browser window.",
             "element_id": "The exact labelled part of the page under the gaze point (detailed id, e.g. q54-b-text = answer b's text). Empty when nothing labelled was there.",
             "block": "The part of the page in plain English: question, passage, answer a-d, between answers, instructions, audio player, Next button, page margin, ...",
-            "word": "The word nearest to the gaze point (within 60 pixels), as text. Empty for sessions recorded before words were saved, and when no word was that close.",
+            "word": "The word nearest to the gaze point, as text: inside an answer, question or passage, its nearest word; elsewhere, the nearest word within 60 pixels. Empty for sessions recorded before words were saved, for buttons and audio players, and when no word was that close.",
             "word_distance_px": "How far the gaze point was from that word, in pixels; 0 = right on it. The tracker is often 100 px or more off, so filter on this (e.g. 30 or less) to keep only close matches.",
             "line": "Which line of its passage, question or answer the word is on (1 = first line), as the text wrapped on the participant's screen.",
         },
