@@ -64,6 +64,11 @@
   const CALIB_HOLD_MS = 1000;             // how long the dot shrinks after its last click
   const CALIB_SAMPLE_INTERVAL_MS = 50;    // one training sample per 50 ms (~20 per dot)
   const CALIB_GAP_MS = 250;               // pause before the next dot appears
+  // WebGazer 3.4 keeps only the latest 50 training samples, but one
+  // calibration gives ~23 per dot (~276 in all), so it used to remember only
+  // the last two dots and predict badly everywhere else. resetTrainingData()
+  // makes room for this many instead (calibration plus clicks during the test).
+  const TRAINING_SAMPLES_KEPT = 1000;
 
   // Validation: show each evaluation point in turn, sample the prediction
   // while the user stares at it, and report the error so a bad calibration is
@@ -343,19 +348,17 @@
       const targetY = rect.top + rect.height / 2;
 
       const errors = [];
+      let sumX = 0, sumY = 0;   // for the average gaze position at this point
       const startedAt = Date.now();
       let finished = false;
-      const sampleTimer = window.setInterval(async () => {
-        let data = null;
-        try {
-          data = await window.webgazer.getCurrentPrediction();
-        } catch { /* ignore */ }
-        // The await above lets ticks overlap, so a late one may land after
-        // this point has already been closed.
+      const sampleTimer = window.setInterval(() => {
+        const data = freshGaze();
         if (finished) return;
         const elapsed = Date.now() - startedAt;
         if (elapsed > VALIDATION_WARMUP_MS && data) {
           errors.push(Math.hypot(data.x - targetX, data.y - targetY));
+          sumX += data.x;
+          sumY += data.y;
         }
         if (elapsed >= VALIDATION_POINT_MS) {
           finished = true;
@@ -368,6 +371,10 @@
               ? errors.reduce((a, b) => a + b, 0) / errors.length
               : null,
             sample_count: errors.length,
+            // Where the gaze landed on average: tells a constant shift
+            // (all points off the same way) from scatter.
+            gaze_x: errors.length ? Math.round(sumX / errors.length) : null,
+            gaze_y: errors.length ? Math.round(sumY / errors.length) : null,
           });
           allErrors.push(...errors);
           if (index + 1 < POINT_POSITIONS.length) {
@@ -375,7 +382,7 @@
           } else {
             validateDot.style.display = "none";
             storeValidation(points);
-            showValidationResult(allErrors);
+            showValidationResult(points, allErrors);
           }
         }
       }, VALIDATION_INTERVAL_MS);
@@ -384,24 +391,33 @@
     runPoint(0);
   }
 
-  function showValidationResult(samples) {
+  // The grade uses accuracy: for each dot, the distance from the dot to the
+  // average of the gaze readings there, averaged over the dots. This is the
+  // usual eye-tracking definition; the jitter between readings (precision) is
+  // left out of it. The average distance of every reading, jitter included,
+  // is shown and saved as well (mean_error_px).
+  function showValidationResult(points, samples) {
     validateHint.style.visibility = "hidden";
     const diag = Math.hypot(browserWidth, browserHeight);
+    const offsets = points
+      .filter((p) => p.gaze_x != null && p.gaze_y != null)
+      .map((p) => Math.hypot(p.gaze_x - p.target_x, p.gaze_y - p.target_y));
 
     let grade, cls, detail;
-    if (samples.length === 0) {
+    if (offsets.length === 0) {
       grade = "No signal";
       cls = "poor";
       detail = "WebGazer couldn't read your gaze. Check lighting and that your face is visible, then recalibrate.";
     } else {
-      const meanPx = samples.reduce((a, b) => a + b, 0) / samples.length;
-      const frac = meanPx / diag;
+      const accuracyPx = offsets.reduce((a, b) => a + b, 0) / offsets.length;
+      const withJitterPx = samples.reduce((a, b) => a + b, 0) / samples.length;
+      const frac = accuracyPx / diag;
       if (frac <= GOOD_FRAC) { grade = "Good"; cls = "good"; }
       else if (frac <= FAIR_FRAC) { grade = "Fair"; cls = "fair"; }
       else { grade = "Poor"; cls = "poor"; }
-      detail = "Average error over " + POINT_POSITIONS.length + " points: ~" +
-        Math.round(meanPx) + " px (" +
-        (frac * 100).toFixed(1) + "% of screen). " +
+      detail = "Average distance from the " + POINT_POSITIONS.length + " dots: ~" +
+        Math.round(accuracyPx) + " px (" + (frac * 100).toFixed(1) + "% of screen; ~" +
+        Math.round(withJitterPx) + " px counting jitter). " +
         (cls === "good"
           ? "You're good to go."
           : "Recalibrate for better results — keep your head still and click each dot while looking right at it.");
@@ -433,6 +449,40 @@
   // Move the red dot to the latest prediction. Runs at WebGazer's full
   // prediction rate (~30/s) — smoother than the 10/s storage loop — and only
   // after calibration, so it never appears during setup.
+  // WebGazer's own prediction for each video frame, kept for the accuracy
+  // check and the gaze log. Asking WebGazer with getCurrentPrediction() instead
+  // would run the face tracker a second time (slowing tracking down) and step
+  // its smoothing filter an extra time.
+  let latestGaze = null;
+  let latestGazeAt = 0;
+  const GAZE_STALE_MS = 250;   // older than this = no current prediction
+
+  function onGaze(data) {
+    latestGaze = data;
+    latestGazeAt = Date.now();
+    moveGazeDot(data);
+  }
+
+  function freshGaze() {
+    return latestGaze && Date.now() - latestGazeAt <= GAZE_STALE_MS ? latestGaze : null;
+  }
+
+  // Forget all training samples (WebGazer's clearData) and make room for
+  // TRAINING_SAMPLES_KEPT of them, since clearData brings back the 50 limit.
+  // The click buffers are the ones the ridge model learns from.
+  function resetTrainingData() {
+    try { window.webgazer.clearData(); } catch { /* ignore */ }
+    try {
+      const DataWindow = window.webgazer.util.DataWindow;
+      for (const reg of window.webgazer.getRegression()) {
+        reg.screenXClicksArray = new DataWindow(TRAINING_SAMPLES_KEPT);
+        reg.screenYClicksArray = new DataWindow(TRAINING_SAMPLES_KEPT);
+        reg.eyeFeaturesClicks = new DataWindow(TRAINING_SAMPLES_KEPT);
+        reg.dataClicks = new DataWindow(TRAINING_SAMPLES_KEPT);
+      }
+    } catch (e) { console.warn("Could not enlarge WebGazer training buffer", e); }
+  }
+
   function moveGazeDot(data) {
     if (!calibrationFinish || !data) return;
     gazeDot.style.transform =
@@ -638,7 +688,7 @@
 
   async function logPoint() {
     if (!calibrationFinish || sessionId == null) return;
-    const data = await window.webgazer.getCurrentPrediction();
+    const data = freshGaze();
     if (!data) return;
     if (!inBounds(data.x, data.y)) return;
 
@@ -716,7 +766,7 @@
             // visits in this browser — a different sitting position, or a
             // different person — and mixes them into the new model.
             .saveDataAcrossSessions(false)
-            .setGazeListener(function (data) { moveGazeDot(data); })
+            .setGazeListener(onGaze)
             .begin(),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Camera start timed out")), CAMERA_START_TIMEOUT_MS)
@@ -734,8 +784,9 @@
       // (begin() adds them, so this must run after it has finished.)
       try { window.webgazer.removeMouseEventListeners(); } catch { /* ignore */ }
 
-      // Wipe any samples an earlier visit left in this browser's storage.
-      try { await window.webgazer.clearData(); } catch { /* ignore */ }
+      // Wipe any samples an earlier visit left in this browser's storage,
+      // and make room for a whole calibration's samples.
+      resetTrainingData();
 
       // Only create the session once the camera works, so failed starts don't
       // leave empty sessions behind. Don't wait for it, though: a sleeping
@@ -778,7 +829,7 @@
   recalibrateBtn.addEventListener("click", () => {
     validate.classList.remove("show");
     validateResult.classList.remove("show");
-    try { window.webgazer.clearData(); } catch { /* ignore */ }
+    resetTrainingData();
     // A poor result is most often a badly placed face, so check that first.
     startPositioning();
   });

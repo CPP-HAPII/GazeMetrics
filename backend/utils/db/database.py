@@ -61,6 +61,7 @@ async def init_db() -> None:
     (see readable.py).
     Called at app startup."""
     from . import models  # noqa: F401 - ensure models register with Base.metadata
+    from sqlalchemy import text
     from .views import create_views
     from .migrate_old_tables import migrate_old_tables
     from .readable import (
@@ -72,6 +73,9 @@ async def init_db() -> None:
         await migrate_old_tables(conn)
         await add_answer_key_columns(conn)
         await add_word_columns(conn)
+        await conn.execute(text(
+            "ALTER TABLE calibration ADD COLUMN IF NOT EXISTS accuracy_px float8"
+        ))
         await drop_page_column(conn)
         await create_functions(conn)
         await create_views(conn)

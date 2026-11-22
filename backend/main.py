@@ -10,6 +10,7 @@ Run from this directory:  uvicorn main:app --reload --port 8000
 Then open:                http://localhost:8000/
 """
 import sys
+import math
 import shutil
 import asyncio
 import subprocess
@@ -204,8 +205,17 @@ async def store_validation(request: Request, db: AsyncSession = Depends(get_db))
         }
         for p in body.get("points", [])
     ]
+    # offset_px: distance from the dot to the average gaze position there
+    # (accuracy, without the jitter between samples that error_px includes).
+    for p in points:
+        p["offset_px"] = (
+            round(math.hypot(p["gaze_x"] - p["x"], p["gaze_y"] - p["y"]), 1)
+            if p["gaze_x"] is not None and p["gaze_y"] is not None else None
+        )
     errors = [p["error_px"] for p in points if p["error_px"] is not None]
     mean_error = round(sum(errors) / len(errors), 1) if errors else None
+    offsets = [p["offset_px"] for p in points if p["offset_px"] is not None]
+    accuracy = round(sum(offsets) / len(offsets), 1) if offsets else None
 
     db.add(Calibration(
         session_id=session_id,
@@ -213,6 +223,7 @@ async def store_validation(request: Request, db: AsyncSession = Depends(get_db))
         attempt=int(body.get("attempt") or 1),
         checked_at=datetime.now(timezone.utc),
         mean_error_px=mean_error,
+        accuracy_px=accuracy,
         points_with_data=len(errors),
         points=points,
     ))

@@ -82,10 +82,15 @@ class Calibration(Base):
     participant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False)
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Average over the points where the tracker produced a reading.
+    # Average distance of every reading from its dot (includes jitter),
+    # over the points where the tracker produced a reading.
     mean_error_px: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Average distance from each dot to the average gaze position there
+    # (accuracy without the jitter). The participant's grade uses this.
+    accuracy_px: Mapped[float | None] = mapped_column(Float, nullable=True)
     points_with_data: Mapped[int] = mapped_column(Integer, nullable=False)
-    # One entry per point: {"point", "x", "y", "error_px", "samples"}.
+    # One entry per point: {"point", "x", "y", "error_px", "samples",
+    # "gaze_x", "gaze_y", "offset_px"}.
     points: Mapped[list] = mapped_column(JSONB, nullable=False)
 
 

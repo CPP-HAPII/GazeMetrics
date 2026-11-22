@@ -103,7 +103,7 @@ COMMENTS = {
             "started_at": "When the session was created (UTC).",
             "browser_width": "Width of the participant's browser window, in pixels.",
             "browser_height": "Height of the participant's browser window, in pixels.",
-            "calibration_error_px": "Average distance (pixels) between where the participant looked and where the tracker thought they looked, in the last accuracy check. Lower is better.",
+            "calibration_error_px": "Average distance (pixels) between where the participant looked and where the tracker thought they looked, in the last accuracy check, counting every reading (jitter included; see calibration.accuracy_px for the graded accuracy). Lower is better.",
         },
     ),
     "pages_readable": (
@@ -156,9 +156,10 @@ COMMENTS = {
             "participant_name": "The participant's ID.",
             "attempt": "1 = first accuracy check, 2 = after recalibrating once, ...",
             "checked_at": "When the check was done (UTC).",
-            "mean_error_px": "Average distance (pixels) between the dot and where the tracker thought the participant looked. Lower is better.",
+            "mean_error_px": "Average distance (pixels) between the dot and each reading of where the tracker thought the participant looked, so the jitter between readings is included. Lower is better.",
+            "accuracy_px": "Average distance (pixels) between each dot and the average of the readings there: the tracker's accuracy without the jitter. The Good / Fair / Poor grade shown to the participant uses this. Empty for checks before Nov 22, 2026.",
             "points_with_data": "How many of the 12 dots got a reading from the tracker.",
-            "points": "Each dot: its position, the error there, and how many samples it got.",
+            "points": "Each dot: its position (x, y), the average error of its readings (error_px), how many readings it got (samples), and, from Nov 22, 2026, the average gaze position (gaze_x, gaze_y) and its distance from the dot (offset_px).",
         },
     ),
     "gaze": (
