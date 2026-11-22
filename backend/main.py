@@ -183,7 +183,7 @@ async def store_validation(request: Request, db: AsyncSession = Depends(get_db))
     update the session's calibration_error_px to this latest check.
 
     Body: {session_id, attempt, points: [{point_index, target_x, target_y,
-    mean_error_px, sample_count}]}. mean_error_px is null for a point where
+    mean_error_px, sample_count, gaze_x, gaze_y}]}. mean_error_px is null for a point where
     no gaze prediction was available.
     """
     body = await request.json()
@@ -198,6 +198,9 @@ async def store_validation(request: Request, db: AsyncSession = Depends(get_db))
             "error_px": (round(float(p["mean_error_px"]), 1)
                          if p.get("mean_error_px") is not None else None),
             "samples": int(p.get("sample_count") or 0),
+            # Average gaze position while the point was shown (null if none).
+            "gaze_x": p.get("gaze_x"),
+            "gaze_y": p.get("gaze_y"),
         }
         for p in body.get("points", [])
     ]
@@ -516,4 +519,16 @@ async def process_session(request: Request):
 # --------------------------------------------------------------------------
 # Static frontend (mounted last so /api/* routes take precedence)
 # --------------------------------------------------------------------------
-app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+class FrontendFiles(StaticFiles):
+    """The frontend, with "no-cache" so browsers check for a newer file every
+    time (a quick "not modified" answer if unchanged). Without it a browser
+    can keep running an old eyetracker.js after the code is updated, e.g. on
+    the lab computers after a git pull."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", FrontendFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
