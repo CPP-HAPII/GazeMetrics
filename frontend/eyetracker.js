@@ -76,10 +76,13 @@
   const FAIR_FRAC = 0.12;
 
   // 12 calibration/evaluation positions (4 x 3 grid) as viewport percentages.
-  // Edge points sit close to the borders (with a small margin) so WebGazer
-  // trains where it's weakest.
-  const POINT_COLUMNS = [6, 35.33, 64.67, 94];
-  const POINT_ROWS = [8, 50, 92];
+  // The outer dots sit where the test text starts and ends, not at the screen
+  // edges (Ben, Nov 2026: only the text area matters, not the margins). On a
+  // 1920x1080 screen a question's text starts about 10% in from the left and
+  // top (the card's margin plus padding in exam.css) and its answers end about
+  // 10% from the right and bottom.
+  const POINT_COLUMNS = [10, 36.67, 63.33, 90];
+  const POINT_ROWS = [10, 50, 90];
   const POINT_POSITIONS = POINT_ROWS.flatMap((y) => POINT_COLUMNS.map((x) => [x, y]));
 
   /* ---------------- participant ---------------- */
