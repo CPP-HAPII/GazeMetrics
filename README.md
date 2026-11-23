@@ -54,7 +54,7 @@ The Render free plan puts the backend to sleep after about 15 minutes without re
 4. **Face positioning** — a live camera preview with a square that turns green when both eyes are detected.
 5. **Calibration** — 12 black dots (4 × 3 grid, 12 px, light gray background), placed over the area where the test text appears (10% to 90% of the screen width and height) rather than at the screen edges, shown one at a time. The participant clicks each dot three times (each click is a training sample, and the dot gets a little smaller so they can see it counted), then keeps looking at it while it shrinks for 1 second; the tracker records a training sample every 50 ms during that time (about 23 per dot in all).
 6. **Accuracy check** — a dot moves through the same 12 positions, 3 seconds each, with the option to recalibrate afterwards. The grade (Good up to 6% of the screen diagonal, Fair up to 12%, Poor above) uses **accuracy**: for each dot, the distance from the dot to the average of the gaze readings there, averaged over the 12 dots. This is the usual eye-tracking definition; the jitter between readings is left out of the grade but also shown and saved (`mean_error_px`).
-7. **Test** — gaze is recorded about 10 times per second (see [The test](#the-test)). The participant does not see where the tracker thinks they are looking (the live gaze dot is hidden, so it can't draw their eyes). Every mouse click during the test also trains the tracker, since people look at what they click; this keeps it adjusting as the participant shifts over a long test.
+7. **Test** — gaze is recorded about 10 times per second (see [The test](#the-test)). The participant does not see where the tracker thinks they are looking (the live gaze dot is hidden, so it can't draw their eyes, and so is the "Recording gaze" badge). Every mouse click during the test also trains the tracker, since people look at what they click; this keeps it adjusting as the participant shifts over a long test.
 
 The target size and colours, and the one-dot-at-a-time calibration, follow Psarra, Krassanakis and Kesidis, *Systematic Performance Evaluation of WebGazer Webcam-Based Eye Tracking with Spatial and Angular Error Analysis*, J. Eye Mov. Res. 2026, 19, 99 (https://doi.org/10.3390/jemr19050099). The settings are constants at the top of `frontend/eyetracker.js`.
 
@@ -301,7 +301,7 @@ All routes are in `backend/main.py`. The capture page calls the first five; the 
 - ✅ Welcome page with participant ID; capture with face positioning, one-dot-at-a-time 12-point calibration (3 clicks per dot) and per-point accuracy check
 - ✅ The full test: 20 listening questions, 80 written questions, 12 reading passages with 24 questions
 - ✅ Word-level gaze labels on every page, page timing, time per question and reading time per passage
-- ✅ Live gaze dot hidden from participants during the test
+- ✅ Live gaze dot and "Recording gaze" badge hidden from participants during the test
 - ✅ PostgreSQL storage with batched writes, hosted on Supabase; frontend on Vercel, backend on Render
 - ✅ Participants' answers saved with their time, including changed answers
 - ✅ Simpler database: four tables (`sessions`, `pages`, `calibration`, `gaze`) with the participant's name on every row

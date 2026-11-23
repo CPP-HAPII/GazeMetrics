@@ -444,6 +444,9 @@
     openVisit();
     hudDot.classList.add("recording");
     hudStatus.textContent = "Recording gaze";
+    // Hide the status badge during the test: a moving, pulsing badge in the
+    // corner draws the eyes away from the questions.
+    document.getElementById("hud").style.display = "none";
   }
 
   // Move the red dot to the latest prediction. Runs at WebGazer's full
