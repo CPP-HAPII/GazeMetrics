@@ -382,7 +382,7 @@
           } else {
             validateDot.style.display = "none";
             storeValidation(points);
-            showValidationResult(points, allErrors);
+            showValidationResult(allErrors);
           }
         }
       }, VALIDATION_INTERVAL_MS);
@@ -391,33 +391,24 @@
     runPoint(0);
   }
 
-  // The grade uses accuracy: for each dot, the distance from the dot to the
-  // average of the gaze readings there, averaged over the dots. This is the
-  // usual eye-tracking definition; the jitter between readings (precision) is
-  // left out of it. The average distance of every reading, jitter included,
-  // is shown and saved as well (mean_error_px).
-  function showValidationResult(points, samples) {
+  function showValidationResult(samples) {
     validateHint.style.visibility = "hidden";
     const diag = Math.hypot(browserWidth, browserHeight);
-    const offsets = points
-      .filter((p) => p.gaze_x != null && p.gaze_y != null)
-      .map((p) => Math.hypot(p.gaze_x - p.target_x, p.gaze_y - p.target_y));
 
     let grade, cls, detail;
-    if (offsets.length === 0) {
+    if (samples.length === 0) {
       grade = "No signal";
       cls = "poor";
       detail = "WebGazer couldn't read your gaze. Check lighting and that your face is visible, then recalibrate.";
     } else {
-      const accuracyPx = offsets.reduce((a, b) => a + b, 0) / offsets.length;
-      const withJitterPx = samples.reduce((a, b) => a + b, 0) / samples.length;
-      const frac = accuracyPx / diag;
+      const meanPx = samples.reduce((a, b) => a + b, 0) / samples.length;
+      const frac = meanPx / diag;
       if (frac <= GOOD_FRAC) { grade = "Good"; cls = "good"; }
       else if (frac <= FAIR_FRAC) { grade = "Fair"; cls = "fair"; }
       else { grade = "Poor"; cls = "poor"; }
-      detail = "Average distance from the " + POINT_POSITIONS.length + " dots: ~" +
-        Math.round(accuracyPx) + " px (" + (frac * 100).toFixed(1) + "% of screen; ~" +
-        Math.round(withJitterPx) + " px counting jitter). " +
+      detail = "Average error over " + POINT_POSITIONS.length + " points: ~" +
+        Math.round(meanPx) + " px (" +
+        (frac * 100).toFixed(1) + "% of screen). " +
         (cls === "good"
           ? "You're good to go."
           : "Recalibrate for better results — keep your head still and click each dot while looking right at it.");
